@@ -1,4 +1,5 @@
 {
+  "id": "/?app=mighty-qr",
   "name": "Mighty AI QR",
   "short_name": "Mighty QR",
   "description": "Generate NUX MightyAmp QR codes from natural language tone descriptions",
