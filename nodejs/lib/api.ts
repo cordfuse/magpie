@@ -77,3 +77,73 @@ export async function sendChat(messages: Message[], signal?: AbortSignal): Promi
     sources: data.sources,
   }
 }
+
+export async function sendChatStream(
+  messages: Message[],
+  onDelta: (text: string) => void,
+  signal?: AbortSignal,
+): Promise<ChatResponse> {
+  let token = getToken()
+  if (!token) {
+    await authenticate()
+    token = getToken()!
+  }
+
+  const res = await fetch(`${BASE}/chat`, {
+    method: 'POST',
+    signal,
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ messages, stream: true }),
+  })
+
+  if (res.status === 401) {
+    localStorage.removeItem('auth_token')
+    await authenticate()
+    return sendChatStream(messages, onDelta, signal)
+  }
+
+  if (!res.ok || !res.body) {
+    let message = `Server error ${res.status}`
+    try {
+      const body = await res.json()
+      if (body?.error && typeof body.error === 'string') message = body.error
+    } catch { /* ignore parse errors */ }
+    throw new Error(message)
+  }
+
+  const reader = res.body.getReader()
+  const decoder = new TextDecoder()
+  let buf = ''
+  let accumulated = ''
+
+  while (true) {
+    const { done, value } = await reader.read()
+    if (done) break
+    buf += decoder.decode(value, { stream: true })
+
+    let sep: number
+    while ((sep = buf.indexOf('\n\n')) >= 0) {
+      const evt = buf.slice(0, sep)
+      buf = buf.slice(sep + 2)
+      if (!evt.startsWith('data: ')) continue
+      const payload = evt.slice(6)
+      let obj: { type: string; content?: string; message?: string }
+      try {
+        obj = JSON.parse(payload)
+      } catch {
+        continue
+      }
+      if (obj.type === 'delta' && obj.content) {
+        accumulated += obj.content
+        onDelta(obj.content)
+      } else if (obj.type === 'error') {
+        throw new Error(obj.message ?? 'Stream error')
+      }
+    }
+  }
+
+  return { message: accumulated }
+}

@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { v4 as uuidv4 } from 'uuid'
-import { sendChat, initAuth } from '@/lib/api'
+import { sendChatStream, initAuth } from '@/lib/api'
 import {
   loadConversations, upsertConversation, deleteConversation, clearAllConversations,
   autoTitle, relativeTime, getTheme, saveTheme, type Theme,
@@ -199,18 +199,27 @@ export default function Home() {
     const abort = new AbortController()
     abortRef.current = abort
 
+    const assistantId = uuidv4()
+    const assistantMsg: ChatMessage = { id: assistantId, role: 'assistant', content: '' }
+    setMessages([...newMessages, assistantMsg])
+
     try {
-      const res = await sendChat(
+      const res = await sendChatStream(
         newMessages.map(({ role, content }) => ({ role, content })),
+        (delta) => {
+          setMessages(prev => prev.map(m =>
+            m.id === assistantId ? { ...m, content: m.content + delta } : m
+          ))
+        },
         abort.signal,
       )
-      const assistantMsg: ChatMessage = {
-        id: uuidv4(),
+      const finalAssistant: ChatMessage = {
+        id: assistantId,
         role: 'assistant',
         content: res.message,
         sources: res.sources,
       }
-      const finalMessages = [...newMessages, assistantMsg]
+      const finalMessages = [...newMessages, finalAssistant]
       setMessages(finalMessages)
 
       // persist conversation
@@ -229,10 +238,12 @@ export default function Home() {
       if (!activeId) setActiveId(convId)
     } catch (e) {
       if (e instanceof Error && e.name === 'AbortError') {
-        setMessages(messages) // rollback the unanswered user message
+        // keep whatever streamed in before abort — strip the placeholder if empty
+        setMessages(prev => prev.filter(m => m.id !== assistantId || m.content.length > 0))
       } else {
         const msg = e instanceof Error ? e.message : 'Request failed'
         setError(msg)
+        setMessages(prev => prev.filter(m => m.id !== assistantId || m.content.length > 0))
       }
     } finally {
       setStreaming(false)

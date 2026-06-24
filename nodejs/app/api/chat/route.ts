@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getDeviceIdFromRequest } from '@/lib/server/jwt'
-import { runChat, type Provider } from '@/lib/server/ai-tools'
+import { runChat, runChatStream, type Provider } from '@/lib/server/ai-tools'
 
 export const maxDuration = 300
 
@@ -33,7 +33,7 @@ export async function POST(request: NextRequest) {
   }
 
   const body = await request.json()
-  const { messages } = body
+  const { messages, stream: wantStream } = body
 
   if (!Array.isArray(messages) || messages.length === 0) {
     return NextResponse.json({ error: 'Invalid messages' }, { status: 400 })
@@ -46,7 +46,37 @@ export async function POST(request: NextRequest) {
     }, { status: 503 })
   }
 
-  console.log(`[chat] msgs=${messages.length} provider=${DEFAULT_PROVIDER} model=${DEFAULT_MODEL}`)
+  console.log(`[chat] msgs=${messages.length} provider=${DEFAULT_PROVIDER} model=${DEFAULT_MODEL} stream=${!!wantStream}`)
+
+  if (wantStream) {
+    const enc = new TextEncoder()
+    const readable = new ReadableStream<Uint8Array>({
+      async start(controller) {
+        const send = (obj: unknown) =>
+          controller.enqueue(enc.encode(`data: ${JSON.stringify(obj)}\n\n`))
+        try {
+          for await (const delta of runChatStream(messages, DEFAULT_PROVIDER, DEFAULT_MODEL, DEFAULT_SYSTEM_PROMPT)) {
+            send({ type: 'delta', content: delta })
+          }
+          send({ type: 'done' })
+          console.log('[chat] stream done')
+        } catch (err) {
+          console.error('[chat] stream error:', err)
+          const message = err instanceof Error ? err.message : 'Internal server error'
+          send({ type: 'error', message })
+        } finally {
+          controller.close()
+        }
+      },
+    })
+    return new Response(readable, {
+      headers: {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache, no-transform',
+        Connection: 'keep-alive',
+      },
+    })
+  }
 
   try {
     const result = await runChat(messages, DEFAULT_PROVIDER, DEFAULT_MODEL, DEFAULT_SYSTEM_PROMPT)

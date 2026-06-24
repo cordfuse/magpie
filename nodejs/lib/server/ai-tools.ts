@@ -68,3 +68,27 @@ export async function runChat(
 
   return { message: text }
 }
+
+export async function* runChatStream(
+  messages: ChatMessage[],
+  provider: Provider = 'anthropic',
+  model: string = 'claude-sonnet-4-6',
+  systemPrompt: string = 'You are a helpful AI assistant.',
+): AsyncGenerator<string, void, unknown> {
+  const apiMessages = [
+    { role: 'system' as const, content: systemPrompt },
+    ...messages.map(m => ({ role: m.role, content: m.content })),
+  ]
+
+  const stream = await tokenjs.chat.completions.create({
+    provider,
+    model,
+    messages: apiMessages,
+    stream: true,
+  })
+
+  for await (const chunk of stream) {
+    const delta = chunk.choices[0]?.delta?.content
+    if (delta) yield delta
+  }
+}
