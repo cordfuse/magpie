@@ -4,6 +4,19 @@
 
 Not a hosted product. Clone, configure, run.
 
+## Repo layout
+
+```
+quill/
+├── nodejs/        # the app — Next.js, run bare metal via npm run dev / build / start
+└── docker/        # Dockerfile + compose + Caddyfile for the containerized deploy variant
+```
+
+Each subfolder is self-contained. Pick the path you want:
+
+- **Bare-metal Node.js** — `cd nodejs/` and follow the Quick start below
+- **Docker** — `cd docker/` and `docker compose up` (compose file references `../nodejs/` for the build context)
+
 ## Stack
 
 - **Next.js 15** + React 19 + Tailwind (single-page app, PWA-capable)
@@ -11,15 +24,27 @@ Not a hosted product. Clone, configure, run.
 - **JWT device-auth** — anonymous guest sessions; no signup, no email, no third-party auth provider
 - No database (yet); conversations persist in browser `localStorage`
 
-## Quick start
+## Quick start (bare-metal)
 
 ```bash
+cd nodejs/
 npm install
 cp .env.example .env.local
 # edit .env.local — at minimum set ANTHROPIC_API_KEY + JWT_SECRET
 npm run dev
 # → http://localhost:3000
 ```
+
+## Quick start (Docker)
+
+```bash
+cd docker/
+# create .env in this folder with at minimum: JWT_SECRET, ANTHROPIC_API_KEY
+docker compose up --build
+# → http://localhost:3008  (host port; container internal is 3000)
+```
+
+Production compose (`docker-compose.prod.yml`) adds a Caddy reverse-proxy in front of the app — edit `docker/Caddyfile` to set your domain before bringing it up.
 
 ## Configuration (env vars)
 

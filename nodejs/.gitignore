@@ -1,0 +1,17 @@
+# Next.js + Quill app — specific to this subfolder
+
+# Next.js build output
+.next/
+out/
+
+# next-pwa generated files
+public/sw.js
+public/sw.js.map
+public/workbox-*.js
+public/workbox-*.js.map
+
+# Build artifacts
+tsconfig.tsbuildinfo
+
+# Local runtime data (if/when the app starts persisting)
+data/

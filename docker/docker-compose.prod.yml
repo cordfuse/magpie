@@ -1,0 +1,45 @@
+# Quill — production single-host compose (Caddy-fronted, no exposed port).
+#
+# Caddy terminates TLS at the edge and proxies to the app on its internal
+# network. Set YOUR_DOMAIN in ../docker/Caddyfile before bringing up.
+# Build context is repo root (one level above docker/).
+
+services:
+  app:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: quill
+    restart: unless-stopped
+    environment:
+      JWT_SECRET: ${JWT_SECRET}
+      QUILL_PROVIDER: ${QUILL_PROVIDER:-anthropic}
+      QUILL_MODEL: ${QUILL_MODEL:-claude-sonnet-4-6}
+      QUILL_SYSTEM_PROMPT: ${QUILL_SYSTEM_PROMPT:-You are a helpful AI assistant.}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      # Uncomment + set additional provider keys as needed.
+    networks:
+      - internal
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: quill-caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    networks:
+      - internal
+    depends_on:
+      - app
+
+volumes:
+  caddy-data:
+  caddy-config:
+
+networks:
+  internal:

@@ -1,0 +1,47 @@
+# Quill — dev / single-host compose.
+#
+# Build context is repo root so the Dockerfile can COPY from nodejs/.
+# Run from this folder: `docker compose up` (or `docker compose up --build`).
+# Host port 3008 chosen per Cordfuse PORTS.md registry (next free 30xx slot
+# after llmux=3001/vyzr=3006-3007/mighty-ai-qr-web=3005).
+
+services:
+  quill:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: quill
+    restart: unless-stopped
+    ports:
+      - "3008:3000"
+    environment:
+      # Auth — required, no sensible default for production
+      JWT_SECRET: ${JWT_SECRET:-dev-secret-change-in-prod}
+
+      # Provider selection (default anthropic). Set the matching
+      # API key env below.
+      QUILL_PROVIDER: ${QUILL_PROVIDER:-anthropic}
+      QUILL_MODEL: ${QUILL_MODEL:-claude-sonnet-4-6}
+      QUILL_SYSTEM_PROMPT: ${QUILL_SYSTEM_PROMPT:-You are a helpful AI assistant.}
+
+      # Provider keys — uncomment + set the ones you use.
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      # OPENAI_API_KEY: ${OPENAI_API_KEY}
+      # GEMINI_API_KEY: ${GEMINI_API_KEY}
+      # GROQ_API_KEY: ${GROQ_API_KEY}
+      # MISTRAL_API_KEY: ${MISTRAL_API_KEY}
+      # COHERE_API_KEY: ${COHERE_API_KEY}
+      # PERPLEXITY_API_KEY: ${PERPLEXITY_API_KEY}
+      # AI21_API_KEY: ${AI21_API_KEY}
+
+      # Optional — anthropic native web search version (when re-added).
+      # WEB_SEARCH_TOOL_VERSION: web_search_20250305
+
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - proxy_net
+
+networks:
+  proxy_net:
+    external: true

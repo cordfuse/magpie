@@ -1,11 +1,8 @@
-# Dependencies
+# Universal — applies anywhere in the repo
+
 node_modules/
 
-# Next.js build output
-.next/
-out/
-
-# Environment files
+# Environment files (any depth — operator's keys + secrets)
 .env
 .env.local
 .env.development.local
@@ -17,18 +14,12 @@ out/
 *.log
 .swp
 
-# next-pwa generated files
-public/sw.js
-public/sw.js.map
-public/workbox-*.js
-public/workbox-*.js.map
-
-# Build artifacts
-tsconfig.tsbuildinfo
-
-# Data
-data/
-
-# IDE / Dart tooling (from research)
+# IDE
 .idea/
 .dart_tool/
+.vscode/
+
+# Next.js build output — universal (any depth, since monorepo may have
+# multiple Next.js apps; even pre-quill this got accidentally committed
+# when next dev ran from repo root)
+.next/
