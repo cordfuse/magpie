@@ -341,7 +341,7 @@ function ConvItem({ conv, active, onSelect, onDeleteRequest, onRename }: {
 
 function Sidebar({
   visible, onClose, conversations, activeId, query, setQuery,
-  onSelectConv, onDeleteConv, onRenameConv, onNewChat, onOpenSettings, onClearAll,
+  onSelectConv, onDeleteConv, onRenameConv, onOpenSettings, onClearAll,
 }: {
   visible: boolean
   onClose: () => void
@@ -352,7 +352,6 @@ function Sidebar({
   onSelectConv: (id: string) => void
   onDeleteConv: (id: string, title: string) => void
   onRenameConv: (id: string, title: string) => void
-  onNewChat: () => void
   onOpenSettings: () => void
   onClearAll: () => void
 }) {
@@ -371,29 +370,31 @@ function Sidebar({
         lg:relative lg:shadow-none
         ${visible ? 'translate-x-0' : '-translate-x-full lg:w-0'}
       `}>
-        {/* brand + close (mobile) */}
+        {/* brand + clear-all (when convs exist) + close (mobile) */}
         <div className="flex items-center justify-between px-3 py-3 shrink-0 min-w-[260px] border-b border-white/10">
           <div className="flex items-center gap-2.5">
             <QuillIcon />
             <span className="text-sm font-medium text-fg whitespace-nowrap">Quill</span>
           </div>
-          <button onClick={onClose} className="flex h-7 w-7 items-center justify-center rounded-lg text-fg-3 hover:bg-surface-2 hover:text-fg transition-colors lg:hidden" aria-label="Close sidebar">
-            <CloseIcon />
-          </button>
-        </div>
-
-        {/* new chat */}
-        <div className="px-3 pt-3 pb-2 shrink-0 min-w-[260px]">
-          <button
-            onClick={() => { onNewChat(); onClose() }}
-            className="flex w-full items-center justify-center gap-2 rounded-lg border border-white/10 bg-surface-2 hover:bg-surface-3 px-3 py-2 text-xs text-fg transition-colors"
-          >
-            <NewChatIcon /> New chat
-          </button>
+          <div className="flex items-center gap-1">
+            {conversations.length > 0 && (
+              <button
+                onClick={onClearAll}
+                title="Clear all conversations"
+                aria-label="Clear all conversations"
+                className="flex h-7 w-7 items-center justify-center rounded-lg text-fg-4 hover:bg-surface-2 hover:text-red-400 transition-colors"
+              >
+                <TrashIcon />
+              </button>
+            )}
+            <button onClick={onClose} className="flex h-7 w-7 items-center justify-center rounded-lg text-fg-3 hover:bg-surface-2 hover:text-fg transition-colors lg:hidden" aria-label="Close sidebar">
+              <CloseIcon />
+            </button>
+          </div>
         </div>
 
         {/* search */}
-        <div className="px-3 pb-2 shrink-0 min-w-[260px]">
+        <div className="px-3 pt-3 pb-2 shrink-0 min-w-[260px]">
           <div className="relative">
             <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-fg-4 pointer-events-none"><SearchIcon /></span>
             <input
@@ -427,8 +428,8 @@ function Sidebar({
           }
         </div>
 
-        {/* footer: settings + clear all */}
-        <div className="shrink-0 min-w-[260px] border-t border-white/10 px-3 py-2 flex items-center justify-between">
+        {/* footer: settings shortcut */}
+        <div className="shrink-0 min-w-[260px] border-t border-white/10 px-3 py-2 flex items-center">
           <button
             onClick={onOpenSettings}
             className="flex items-center gap-2 px-2 py-1.5 text-xs text-fg-3 hover:text-fg transition-colors"
@@ -436,15 +437,6 @@ function Sidebar({
           >
             <GearIcon /> Settings
           </button>
-          {conversations.length > 0 && (
-            <button
-              onClick={onClearAll}
-              className="px-2 py-1.5 text-[11px] text-fg-4 hover:text-fg-2 transition-colors"
-              title="Clear all conversations"
-            >
-              Clear all
-            </button>
-          )}
         </div>
       </aside>
     </>
@@ -465,7 +457,7 @@ export default function Home() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [theme, setTheme] = useState<Theme>('dracula')
-  const [confirmDelete, setConfirmDelete] = useState<{ title: string; doDelete: () => void } | null>(null)
+  const [confirmDelete, setConfirmDelete] = useState<{ label: string; doDelete: () => void } | null>(null)
   const [search, setSearch] = useState('')
   const [providers, setProviders] = useState<AvailableProvider[]>([])
   const [provider, setProviderState] = useState<string>('anthropic')
@@ -675,11 +667,13 @@ export default function Home() {
         query={search}
         setQuery={setSearch}
         onSelectConv={loadConversation}
-        onDeleteConv={(id, title) => setConfirmDelete({ title, doDelete: () => removeConversation(id) })}
+        onDeleteConv={(id, title) => setConfirmDelete({ label: `"${title}"`, doDelete: () => removeConversation(id) })}
         onRenameConv={handleRename}
-        onNewChat={newConversation}
         onOpenSettings={() => { setSettingsOpen(true); setSidebarOpen(false) }}
-        onClearAll={clearAll}
+        onClearAll={() => setConfirmDelete({
+          label: `all ${conversations.length} conversation${conversations.length === 1 ? '' : 's'}`,
+          doDelete: clearAll,
+        })}
       />
 
       {/* main column */}
@@ -742,7 +736,7 @@ export default function Home() {
                 const conv = conversations.find(c => c.id === activeId)
                 if (!conv) return
                 setConfirmDelete({
-                  title: conv.title,
+                  label: `"${conv.title}"`,
                   doDelete: () => { removeConversation(activeId); newConversation() },
                 })
               }}
@@ -867,7 +861,7 @@ export default function Home() {
       )}
       {confirmDelete && (
         <DeleteConfirmModal
-          label={`"${confirmDelete.title}"`}
+          label={confirmDelete.label}
           onConfirm={() => { confirmDelete.doDelete(); setConfirmDelete(null) }}
           onCancel={() => setConfirmDelete(null)}
         />
