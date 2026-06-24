@@ -1,0 +1,25 @@
+# Universal — applies anywhere in the repo
+
+node_modules/
+
+# Environment files (any depth — operator's keys + secrets)
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Misc
+.DS_Store
+*.log
+.swp
+
+# IDE
+.idea/
+.dart_tool/
+.vscode/
+
+# Next.js build output — universal (any depth, since monorepo may have
+# multiple Next.js apps; even pre-quill this got accidentally committed
+# when next dev ran from repo root)
+.next/

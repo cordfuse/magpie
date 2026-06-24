@@ -1,0 +1,8 @@
+# Replace YOUR_DOMAIN with the hostname Caddy should serve (e.g.
+# quill.example.com or quill.linux.internal for Cordfuse internal DNS).
+# Caddy handles TLS automatically for public hostnames; on the internal
+# network add `tls internal` inside the block.
+
+YOUR_DOMAIN {
+    reverse_proxy app:3000
+}

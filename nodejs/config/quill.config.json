@@ -1,0 +1,76 @@
+{
+  "$comment": "Quill branding + theme config. Edit this file in-place on a running instance — the next page load picks up the changes (no rebuild, no restart). For PWA shortcuts already installed on a device, the OS-cached launcher icon won't update until you reinstall the PWA.",
+
+  "name": "Quill",
+  "shortName": "Quill",
+  "tagline": "Agent-agnostic AI chatbot framework",
+  "defaultSystemPrompt": "You are a helpful AI assistant.",
+  "$welcomeMessageNote": "If set, rendered as the first assistant bubble whenever the chat is empty (kiosk or not). Markdown supported. Leave empty to show the default 'Start a conversation.' placeholder.",
+  "welcomeMessage": "Hi, I'm the Cordfuse assistant. Ask me about Quill, Crosstalk, llmux, or anything Microsoft Learn covers — I'll pull live docs as needed.",
+
+  "$starterPromptsNote": "Clickable pill chips below the welcome bubble. Each prompt is sent verbatim as the user's first message on click. Empty array hides the chip row. Especially useful for kiosk deployments — turns the empty surface into a guided menu.",
+  "starterPrompts": [
+    "What is Quill?",
+    "How do I deploy Quill in kiosk mode?",
+    "What MCP servers does this instance have wired up?",
+    "Show me the latest Microsoft Graph permissions reference."
+  ],
+  "checkForUpdatesUrl": "https://github.com/cordfuse/quill/releases",
+
+  "$iconNote": "Paths served by the /branding/* route, which streams files from config/icons/. Drop your PNGs into config/icons/ and reference them here as /branding/<filename>. icon192 drives the browser favicon AND the PWA 192 icon; icon512 is PWA only. PWA installs already on a device may keep the OS-cached launcher icon until reinstalled.",
+  "icon192": "/branding/icon-192.png",
+  "icon512": "/branding/icon-512.png",
+
+  "defaultTheme": "dracula",
+  "hideBuiltInThemes": false,
+
+  "$themesExample": "Add as many entries as you want. Each theme overrides every CSS custom property the app uses. category is 'dark' or 'light'. swatches is a 3-color preview shown in the Settings picker. The 'cordfuse' entry below is a working example — delete it or replace it with your brand.",
+  "themes": [
+    {
+      "id": "cordfuse",
+      "name": "Cordfuse",
+      "category": "dark",
+      "swatches": ["#0b1320", "#3ec1d5", "#e5f1f6"],
+      "colors": {
+        "bg": "#0b1320",
+        "surface": "#142133",
+        "surface-2": "#1d2e44",
+        "surface-3": "#2a3c54",
+        "primary": "#3ec1d5",
+        "on-primary": "#0b1320",
+        "fg": "#e5f1f6",
+        "fg-2": "#b8c8d4",
+        "fg-3": "#7f95a8",
+        "fg-4": "#506478",
+        "scrollbar": "rgba(62,193,213,0.25)",
+        "scrollbar-h": "rgba(62,193,213,0.45)",
+        "error-bg": "rgba(255,99,99,0.18)",
+        "error-border": "rgba(255,99,99,0.40)",
+        "error-fg": "#ff7a7a"
+      }
+    },
+    {
+      "id": "innovia",
+      "name": "Innovia",
+      "category": "dark",
+      "swatches": ["#1b4965", "#f58220", "#ffffff"],
+      "colors": {
+        "bg": "#ffffff",
+        "surface": "#1b4965",
+        "surface-2": "#154258",
+        "surface-3": "#0f3650",
+        "primary": "#f58220",
+        "on-primary": "#ffffff",
+        "fg": "#ffffff",
+        "fg-2": "#c8d5e0",
+        "fg-3": "#93a4b5",
+        "fg-4": "#6a7d8f",
+        "scrollbar": "rgba(245,130,32,0.40)",
+        "scrollbar-h": "rgba(245,130,32,0.65)",
+        "error-bg": "rgba(220,53,69,0.18)",
+        "error-border": "rgba(220,53,69,0.45)",
+        "error-fg": "#ff7a7a"
+      }
+    }
+  ]
+}
