@@ -42,6 +42,7 @@ export async function POST(request: NextRequest) {
     messages, stream: wantStream,
     provider: clientProvider, model: clientModel,
     webSearch,
+    mcpServers: clientMcpServers,
     systemPrompt: clientSystemPrompt,
     temperature: clientTemperature,
   } = body
@@ -126,9 +127,12 @@ export async function POST(request: NextRequest) {
   }
   const systemPrompt = resolveSystemPrompt(clientSystemPrompt)
   const temperature  = resolveTemperature(clientTemperature)
-  const runOpts = { webSearch: wantWebSearch, temperature }
+  const mcpServers   = Array.isArray(clientMcpServers)
+    ? clientMcpServers.filter((s): s is string => typeof s === 'string')
+    : []
+  const runOpts = { webSearch: wantWebSearch, temperature, mcpServers }
 
-  console.log(`[chat] msgs=${messages.length} provider=${provider} model=${model} stream=${!!wantStream} websearch=${wantWebSearch} temp=${temperature}`)
+  console.log(`[chat] msgs=${messages.length} provider=${provider} model=${model} stream=${!!wantStream} websearch=${wantWebSearch} mcps=${mcpServers.length ? mcpServers.join(',') : '-'} temp=${temperature}`)
 
   if (wantStream) {
     const enc = new TextEncoder()

@@ -1,5 +1,6 @@
 import { TokenJS } from 'token.js'
 import { WEB_SEARCH_TOOL, executeToolCall, type SearchResult } from './web-search'
+import { getToolsForServers, executeMcpToolCall, isMcpToolName } from './mcp'
 
 // token.js doesn't re-export its LLMProvider type from the main entry,
 // so we mirror the union here. Update if token.js adds providers.
@@ -289,7 +290,7 @@ function buildCallOptions(
   model: string,
   apiMessages: unknown[],
   stream: boolean,
-  withTools: boolean = false,
+  tools: unknown[] | null,
   temperature?: number,
 ) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -298,9 +299,39 @@ function buildCallOptions(
   // constructor (handled by getTokenInstance) but still expects a non-empty
   // apiKey on the call. Most local servers accept any string.
   if (p.category === 'local') opts.apiKey = 'local'
-  if (withTools) opts.tools = [WEB_SEARCH_TOOL]
+  if (tools && tools.length > 0) opts.tools = tools
   if (typeof temperature === 'number') opts.temperature = temperature
   return opts
+}
+
+// Build the per-request tool list: web_search (if enabled) plus all tools
+// from the user's selected MCP servers. Returns null if no tools are active
+// (so we don't pass an empty array to providers that complain).
+async function buildToolList(
+  webSearch: boolean,
+  mcpServerIds: string[] | undefined,
+): Promise<unknown[] | null> {
+  const tools: unknown[] = []
+  if (webSearch) tools.push(WEB_SEARCH_TOOL)
+  if (mcpServerIds && mcpServerIds.length > 0) {
+    const mcpTools = await getToolsForServers(mcpServerIds)
+    for (const t of mcpTools) tools.push(t)
+  }
+  return tools.length > 0 ? tools : null
+}
+
+// Dispatch a tool call to either the built-in web_search executor or the
+// matching MCP client. Always returns a string (the model's tool message).
+async function dispatchToolCall(name: string, argsJson: string): Promise<string> {
+  if (isMcpToolName(name)) {
+    try {
+      const args = argsJson ? JSON.parse(argsJson) : {}
+      return await executeMcpToolCall(name, args)
+    } catch (err) {
+      return JSON.stringify({ error: err instanceof Error ? err.message : 'MCP tool call failed' })
+    }
+  }
+  return executeToolCall(name, argsJson)
 }
 
 // Safety limit on tool-call rounds — prevents a model from looping
@@ -323,6 +354,7 @@ type WireMessage = SystemMessage | UserMessage | AsstTextMsg | AsstToolMsg | Too
 export interface RunChatOptions {
   webSearch?: boolean
   temperature?: number
+  mcpServers?: string[]
 }
 
 // Yielded by runChatStream — text deltas plus optional events the route
@@ -349,10 +381,11 @@ export async function runChat(
   ]
 
   const sources: { title: string; url: string }[] = []
+  const tools = await buildToolList(!!options.webSearch, options.mcpServers)
 
   for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
     const response = await inst.chat.completions.create(
-      buildCallOptions(p, model, wireMessages, false, !!options.webSearch, options.temperature),
+      buildCallOptions(p, model, wireMessages, false, tools, options.temperature),
     )
     const choice = response.choices[0]
     const usage = response.usage
@@ -366,15 +399,18 @@ export async function runChat(
 
     wireMessages.push({ role: 'assistant', content: msg?.content ?? null, tool_calls: toolCalls })
     for (const tc of toolCalls) {
-      const result = await executeToolCall(tc.function.name, tc.function.arguments)
+      const result = await dispatchToolCall(tc.function.name, tc.function.arguments)
       wireMessages.push({ role: 'tool', tool_call_id: tc.id, content: result })
-      // Mine sources for the UI.
-      try {
-        const parsed = JSON.parse(result) as { results?: SearchResult[] }
-        if (Array.isArray(parsed.results)) {
-          for (const r of parsed.results) sources.push({ title: r.title, url: r.url })
-        }
-      } catch { /* result wasn't JSON / had no results — skip */ }
+      // Mine sources for the UI (web_search results only — MCP tool outputs
+      // are free-form and don't share the SearchResult shape).
+      if (tc.function.name === 'web_search') {
+        try {
+          const parsed = JSON.parse(result) as { results?: SearchResult[] }
+          if (Array.isArray(parsed.results)) {
+            for (const r of parsed.results) sources.push({ title: r.title, url: r.url })
+          }
+        } catch { /* skip */ }
+      }
     }
   }
 
@@ -397,11 +433,13 @@ export async function* runChatStream(
     ...messages.map(m => ({ role: m.role, content: m.content })) as (UserMessage | AsstTextMsg)[],
   ]
 
+  const tools = await buildToolList(!!options.webSearch, options.mcpServers)
+
   for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
     // token.js's create() is overloaded on `stream: true`; cast the result
     // to the streaming iterable shape to keep TS happy.
     const stream = await inst.chat.completions.create(
-      buildCallOptions(p, model, wireMessages, true, !!options.webSearch, options.temperature),
+      buildCallOptions(p, model, wireMessages, true, tools, options.temperature),
     ) as unknown as AsyncIterable<{
       choices: Array<{
         delta?: {
@@ -451,19 +489,22 @@ export async function* runChatStream(
       try { query = (JSON.parse(tc.function.arguments) as { query?: string }).query } catch { /* skip */ }
       yield { type: 'tool_running', name: tc.function.name, query }
 
-      const result = await executeToolCall(tc.function.name, tc.function.arguments)
+      const result = await dispatchToolCall(tc.function.name, tc.function.arguments)
       wireMessages.push({ role: 'tool', tool_call_id: tc.id, content: result })
 
-      // Surface sources to the UI as they arrive.
-      try {
-        const parsed = JSON.parse(result) as { results?: SearchResult[] }
-        if (Array.isArray(parsed.results) && parsed.results.length) {
-          yield {
-            type: 'sources',
-            sources: parsed.results.map(r => ({ title: r.title, url: r.url })),
+      // Surface sources to the UI for web_search only — MCP tool results
+      // don't share the SearchResult shape.
+      if (tc.function.name === 'web_search') {
+        try {
+          const parsed = JSON.parse(result) as { results?: SearchResult[] }
+          if (Array.isArray(parsed.results) && parsed.results.length) {
+            yield {
+              type: 'sources',
+              sources: parsed.results.map(r => ({ title: r.title, url: r.url })),
+            }
           }
-        }
-      } catch { /* skip */ }
+        } catch { /* skip */ }
+      }
     }
   }
 }

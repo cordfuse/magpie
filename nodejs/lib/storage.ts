@@ -170,6 +170,29 @@ export function setWebSearchEnabled(enabled: boolean) {
   else localStorage.removeItem(WEB_SEARCH_KEY)
 }
 
+// ─── MCP server selection (per-user, persisted) ─────────────────────────────
+//
+// Set of server IDs the user has toggled on in the composer's MCP picker.
+// Same model as web search: sticky across sessions, applies to the active
+// conversation. Stored as a JSON array of strings.
+
+const MCP_ENABLED_KEY = 'quill_mcp_enabled'
+
+export function getEnabledMcps(): string[] {
+  if (typeof window === 'undefined') return []
+  try {
+    const raw = localStorage.getItem(MCP_ENABLED_KEY)
+    if (!raw) return []
+    const parsed = JSON.parse(raw)
+    return Array.isArray(parsed) ? parsed.filter((s): s is string => typeof s === 'string') : []
+  } catch { return [] }
+}
+
+export function setEnabledMcps(ids: string[]) {
+  if (ids.length === 0) localStorage.removeItem(MCP_ENABLED_KEY)
+  else localStorage.setItem(MCP_ENABLED_KEY, JSON.stringify(ids))
+}
+
 // ─── Generation settings (user overrides — operator defaults via env) ────────
 //
 // All three are `null` when the user hasn't set them; in that case the server

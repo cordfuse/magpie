@@ -4,11 +4,12 @@
   "private": true,
   "scripts": {
     "dev": "next dev --turbopack",
-    "build": "next build && rm -rf .next/standalone/.next/static .next/standalone/public && cp -r .next/static .next/standalone/.next/static && cp -r public .next/standalone/public",
+    "build": "next build && rm -rf .next/standalone/.next/static .next/standalone/public && cp -r .next/static .next/standalone/.next/static && cp -r public .next/standalone/public && cp -f quill-mcp.json .next/standalone/quill-mcp.json 2>/dev/null || true",
     "start": "node --env-file-if-exists=.env.local .next/standalone/server.js",
     "lint": "next lint"
   },
   "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
     "jsonwebtoken": "^9.0.3",
     "mammoth": "^1.12.0",
     "next": "^15.1.0",
