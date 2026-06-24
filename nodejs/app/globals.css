@@ -30,6 +30,27 @@
   --error-fg:     #ff5555;
 }
 
+/* OLED — pure black, optimized for AMOLED screens. Cyan accent like mighty.
+   Placed after Dracula so its rules win the source-order tiebreaker
+   against `:root, [data-theme="dracula"]` (same specificity). */
+[data-theme="oled"] {
+  --bg:         #000000;
+  --surface:    #0d0d0d;
+  --surface-2:  #1a1a1a;
+  --surface-3:  #262626;
+  --primary:    #00bcd4;
+  --on-primary: #001317;
+  --fg:         #e0e0e0;
+  --fg-2:       #b3b3b3;
+  --fg-3:       #808080;
+  --fg-4:       #595959;
+  --scrollbar:  rgba(0,188,212,0.25);
+  --scrollbar-h:rgba(0,188,212,0.45);
+  --error-bg:     rgba(255,82,82,0.18);
+  --error-border: rgba(255,82,82,0.40);
+  --error-fg:     #ff5252;
+}
+
 /* One Dark — Atom */
 [data-theme="one-dark"] {
   --bg:         #282c34;

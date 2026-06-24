@@ -92,6 +92,27 @@ export interface ProviderModelsResult {
 // For local providers this probes the local server's /v1/models endpoint
 // and returns whatever's installed. For cloud providers returns the
 // curated registry list.
+export async function extractDocument(name: string, mimeType: string, dataBase64: string): Promise<string> {
+  let token = getToken()
+  if (!token) {
+    await authenticate()
+    token = getToken()!
+  }
+  const res = await fetch(`${BASE}/extract-document`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ name, mimeType, dataBase64 }),
+  })
+  if (res.status === 401) {
+    localStorage.removeItem('auth_token')
+    await authenticate()
+    return extractDocument(name, mimeType, dataBase64)
+  }
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error(data?.error ?? `Extraction failed: ${res.status}`)
+  return data.text ?? ''
+}
+
 export async function getProviderModels(providerId: string): Promise<ProviderModelsResult> {
   let token = getToken()
   if (!token) {

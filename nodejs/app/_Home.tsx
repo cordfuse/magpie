@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { v4 as uuidv4 } from 'uuid'
-import { sendChatStream, initAuth, getProviders, getProviderModels, type AvailableProvider, type ProviderModel, type MultimodalMessage, type ContentBlock } from '@/lib/api'
+import { sendChatStream, initAuth, getProviders, getProviderModels, extractDocument, type AvailableProvider, type ProviderModel, type MultimodalMessage, type ContentBlock } from '@/lib/api'
 import {
   loadConversations, upsertConversation, deleteConversation, renameConversation,
   clearAllConversations, autoTitle, relativeTime, getTheme, saveTheme, type Theme,
@@ -30,7 +30,8 @@ interface ThemeMeta {
 }
 
 const THEMES: ThemeMeta[] = [
-  // dark (12)
+  // dark (13 — OLED first for the AMOLED-screen crowd)
+  { id: 'oled',              label: 'OLED',             desc: 'Pure black',       bg: '#000000', primary: '#00bcd4', fg: '#e0e0e0' },
   { id: 'dracula',           label: 'Dracula',          desc: 'Purple night',     bg: '#282a36', primary: '#bd93f9', fg: '#f8f8f2' },
   { id: 'one-dark',          label: 'One Dark',         desc: 'Atom classic',     bg: '#282c34', primary: '#61afef', fg: '#abb2bf' },
   { id: 'tokyo-night',       label: 'Tokyo Night',      desc: 'Neon city',        bg: '#1a1b26', primary: '#7aa2f7', fg: '#c0caf5' },
@@ -59,7 +60,7 @@ const THEMES: ThemeMeta[] = [
 ]
 
 const THEME_GROUPS: { label: string; ids: Theme[] }[] = [
-  { label: 'Dark',  ids: ['dracula','one-dark','tokyo-night','nord','solarized-dark','gruvbox-dark','monokai','catppuccin-mocha','night-owl','synthwave','github-dark','palenight'] },
+  { label: 'Dark',  ids: ['oled','dracula','one-dark','tokyo-night','nord','solarized-dark','gruvbox-dark','monokai','catppuccin-mocha','night-owl','synthwave','github-dark','palenight'] },
   { label: 'Light', ids: ['solarized-light','github-light','catppuccin-latte','one-light','tokyo-night-light','ayu-light','gruvbox-light','quiet-light','light-plus','material-lighter','nord-light','min-light'] },
 ]
 
@@ -844,13 +845,27 @@ export default function Home({ initialConvId }: { initialConvId?: string } = {})
   const buildWireMessages = useCallback((msgs: ChatMessage[]): MultimodalMessage[] =>
     msgs.map(m => {
       if (m.attachments && m.attachments.length > 0) {
-        const blocks: ContentBlock[] = []
-        if (m.content) blocks.push({ type: 'text', text: m.content })
+        // Document attachments inject their extracted text as a prefix into
+        // the user's prompt — every provider can read it as plain text, no
+        // multimodal capability required. Images go in as image_url blocks
+        // (multimodal-capable providers only; token.js routes the format).
+        const docPrefixes: string[] = []
+        const imageBlocks: ContentBlock[] = []
         for (const att of m.attachments) {
-          if (att.kind === 'image' && att.dataUrl) {
-            blocks.push({ type: 'image_url', image_url: { url: att.dataUrl } })
+          if (att.kind === 'document' && att.extractedText) {
+            docPrefixes.push(`[Attached document: ${att.name}]\n${att.extractedText}`)
+          } else if (att.kind === 'image' && att.dataUrl) {
+            imageBlocks.push({ type: 'image_url', image_url: { url: att.dataUrl } })
           }
         }
+        const combinedText = [...docPrefixes, m.content].filter(Boolean).join('\n\n---\n\n')
+        // If we only have text (docs + typed prompt, no images), keep
+        // content as a plain string so non-multimodal providers (e.g.
+        // perplexity, ai21) don't choke on the content array.
+        if (imageBlocks.length === 0) return { role: m.role, content: combinedText }
+        const blocks: ContentBlock[] = []
+        if (combinedText) blocks.push({ type: 'text', text: combinedText })
+        blocks.push(...imageBlocks)
         return { role: m.role, content: blocks }
       }
       return { role: m.role, content: m.content }
@@ -871,6 +886,15 @@ export default function Home({ initialConvId }: { initialConvId?: string } = {})
   }, [])
 
   // ── attachment handlers ──
+  // MIME types we can extract text from purely client-side via FileReader.
+  // Anything outside this list (currently just PDF in practice) goes to the
+  // /api/extract-document endpoint for server-side handling.
+  const isClientTextType = (mime: string, name: string) => {
+    if (mime.startsWith('text/')) return true
+    if (['application/json', 'application/xml', 'application/x-yaml'].includes(mime)) return true
+    return /\.(txt|md|json|csv|xml|html?|rtf|yaml|yml|log)$/i.test(name)
+  }
+
   const onPickFile = useCallback((kind: Attachment['kind']) => async (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0]
     e.target.value = ''  // allow re-selecting the same file later
@@ -880,17 +904,58 @@ export default function Home({ initialConvId }: { initialConvId?: string } = {})
       setError(`Attachment "${f.name}" is too large (max 5 MB).`)
       return
     }
-    let dataUrl: string | undefined
+
     if (kind === 'image') {
-      dataUrl = await new Promise<string>((resolve, reject) => {
+      const dataUrl = await new Promise<string>((resolve, reject) => {
         const reader = new FileReader()
         reader.onload = () => resolve(reader.result as string)
         reader.onerror = () => reject(reader.error)
         reader.readAsDataURL(f)
       }).catch(() => undefined)
+      setPendingAttachments(prev => [...prev, {
+        kind: 'image', name: f.name, mimeType: f.type || 'application/octet-stream', size: f.size, dataUrl,
+      }])
+      return
     }
-    const att: Attachment = { kind, name: f.name, mimeType: f.type || 'application/octet-stream', size: f.size, dataUrl }
-    setPendingAttachments(prev => [...prev, att])
+
+    // Document: insert a placeholder chip immediately (so the user sees
+    // something happen), then extract in the background and patch the
+    // attachment in place when done.
+    const mimeType = f.type || 'application/octet-stream'
+    const placeholder: Attachment = {
+      kind: 'document', name: f.name, mimeType, size: f.size, extracting: true,
+    }
+    setPendingAttachments(prev => [...prev, placeholder])
+    const idxKey = f.name + ':' + f.size  // unique-ish key to find it later
+
+    const patch = (updates: Partial<Attachment>) => {
+      setPendingAttachments(prev => prev.map(a =>
+        (a.name + ':' + a.size === idxKey && a.extracting) ? { ...a, ...updates, extracting: false } : a
+      ))
+    }
+
+    try {
+      let text: string
+      if (isClientTextType(mimeType, f.name)) {
+        text = await f.text()
+      } else {
+        // Need server extraction (PDF, etc). Read as base64 data URL, strip
+        // the prefix, ship to /api/extract-document.
+        const dataUrl = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader()
+          reader.onload = () => resolve(reader.result as string)
+          reader.onerror = () => reject(reader.error)
+          reader.readAsDataURL(f)
+        })
+        const dataBase64 = dataUrl.split(',', 2)[1] ?? ''
+        text = await extractDocument(f.name, mimeType, dataBase64)
+      }
+      patch({ extractedText: text })
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Extraction failed'
+      patch({ extractError: msg })
+      setError(`Couldn't extract "${f.name}": ${msg}`)
+    }
   }, [])
 
   const removePendingAttachment = useCallback((idx: number) => {
@@ -965,11 +1030,16 @@ export default function Home({ initialConvId }: { initialConvId?: string } = {})
     const text = input.trim()
     if ((!text && pendingAttachments.length === 0) || streaming) return
 
-    // Document attachments aren't wired to the model yet — token.js doesn't
-    // expose a cross-provider document content block. Surface a clear error
-    // instead of silently dropping them.
-    if (pendingAttachments.some(a => a.kind === 'document')) {
-      setError("Document attachments aren't supported yet — remove them to send. (Image attachments work.)")
+    // Don't send while any document is still being extracted, or if any
+    // failed extraction.
+    const stillExtracting = pendingAttachments.some(a => a.extracting)
+    if (stillExtracting) {
+      setError("Wait — still extracting one or more attached documents.")
+      return
+    }
+    const failed = pendingAttachments.find(a => a.extractError)
+    if (failed) {
+      setError(`Can't send: extraction failed for "${failed.name}". Remove it to continue.`)
       return
     }
 
@@ -1118,14 +1188,24 @@ export default function Home({ initialConvId }: { initialConvId?: string } = {})
             {pendingAttachments.length > 0 && (
               <div className="flex flex-wrap gap-2 px-3 pt-3">
                 {pendingAttachments.map((att, idx) => (
-                  <div key={idx} className="group flex items-center gap-2 rounded-lg border border-white/10 bg-surface-2 px-2 py-1 text-xs text-fg-2">
+                  <div
+                    key={idx}
+                    className={`group flex items-center gap-2 rounded-lg border px-2 py-1 text-xs ${
+                      att.extractError ? 'border-red-400/40 bg-red-500/10 text-red-300' : 'border-white/10 bg-surface-2 text-fg-2'
+                    }`}
+                  >
                     {att.kind === 'image' && att.dataUrl ? (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img src={att.dataUrl} alt={att.name} className="h-6 w-6 rounded object-cover" />
                     ) : (
                       <span className="text-fg-4"><DocumentIcon /></span>
                     )}
-                    <span className="truncate max-w-[10rem]">{att.name}</span>
+                    <span className="truncate max-w-[10rem]" title={att.extractError ?? att.name}>{att.name}</span>
+                    {att.extracting && <span className="text-[10px] text-fg-4 animate-pulse">extracting…</span>}
+                    {att.extractedText && att.kind === 'document' && (
+                      <span className="text-[10px] text-fg-4">{Math.round(att.extractedText.length / 1024)}k chars</span>
+                    )}
+                    {att.extractError && <span className="text-[10px]">failed</span>}
                     <button
                       onClick={() => removePendingAttachment(idx)}
                       title="Remove"

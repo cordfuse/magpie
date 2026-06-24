@@ -62,7 +62,8 @@ export function relativeTime(ts: number): string {
 // app/page.tsx (plus the matching bootstrap script in app/layout.tsx).
 
 export type Theme =
-  // dark (12)
+  // dark (13)
+  | 'oled'
   | 'dracula'
   | 'one-dark'
   | 'tokyo-night'
@@ -94,6 +95,7 @@ const DEFAULT_THEME: Theme = 'dracula'
 
 const VALID_THEMES = new Set<Theme>([
   // dark
+  'oled',
   'dracula', 'one-dark', 'tokyo-night', 'nord', 'solarized-dark',
   'gruvbox-dark', 'monokai', 'catppuccin-mocha', 'night-owl',
   'synthwave', 'github-dark', 'palenight',

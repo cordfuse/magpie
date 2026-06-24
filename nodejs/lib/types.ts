@@ -3,7 +3,10 @@ export interface Attachment {
   name: string
   mimeType: string
   size: number
-  dataUrl?: string  // base64 data URL — present for images; documents may omit
+  dataUrl?: string         // base64 data URL — present for images; documents may omit
+  extractedText?: string   // present for documents once extraction completes
+  extracting?: boolean     // true while extraction is in flight (client-only UI hint)
+  extractError?: string    // populated if extraction failed
 }
 
 export interface Message {

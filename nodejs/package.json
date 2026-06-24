@@ -16,6 +16,7 @@
     "react-markdown": "^9.0.1",
     "remark-gfm": "^4.0.0",
     "token.js": "^0.7.1",
+    "unpdf": "^1.6.2",
     "uuid": "^11.0.0"
   },
   "devDependencies": {
