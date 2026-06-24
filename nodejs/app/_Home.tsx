@@ -170,6 +170,18 @@ function extractCodeText(node: React.ReactNode): string {
   return ''
 }
 
+// Tables ship inside a horizontally-scrollable wrapper so wide GFM tables
+// (3+ columns on mobile) don't blow past the bubble's right edge.
+function TableBlock({ children }: { children?: React.ReactNode }) {
+  return (
+    <div className="my-2 -mx-2 overflow-x-auto">
+      <table className="min-w-full border-collapse text-xs [&_th]:px-2 [&_th]:py-1.5 [&_th]:font-semibold [&_th]:text-left [&_th]:text-fg [&_th]:border [&_th]:border-white/10 [&_th]:bg-surface-2 [&_td]:px-2 [&_td]:py-1.5 [&_td]:align-top [&_td]:border [&_td]:border-white/10">
+        {children}
+      </table>
+    </div>
+  )
+}
+
 function CodeBlock({ children }: { children?: React.ReactNode }) {
   const [copied, setCopied] = useState(false)
   const onCopy = async () => {
@@ -784,7 +796,7 @@ function MessageItem({ msg, streaming, isLastAssistant, onEditAndResend, onRegen
             </span>
           ) : (
             <div className="prose prose-sm max-w-none [&>*]:my-2 [&>:first-child]:mt-0 [&>:last-child]:mb-0 [&_a]:text-primary [&_a]:underline [&_code]:px-1 [&_code]:py-0.5 [&_code]:rounded [&_code]:bg-surface-2 [&_pre]:bg-surface-2 [&_pre]:p-3 [&_pre]:rounded-lg [&_pre]:overflow-x-auto">
-              <ReactMarkdown remarkPlugins={[remarkGfm]} components={{ pre: CodeBlock }}>{msg.content}</ReactMarkdown>
+              <ReactMarkdown remarkPlugins={[remarkGfm]} components={{ pre: CodeBlock, table: TableBlock }}>{msg.content}</ReactMarkdown>
             </div>
           )}
         </div>
