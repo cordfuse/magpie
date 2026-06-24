@@ -56,62 +56,44 @@ export function relativeTime(ts: number): string {
 
 // ─── Theme ────────────────────────────────────────────────────────────────────
 //
-// 24 popular developer themes (12 dark + 12 light). To add a theme: extend
-// this union, add the id to VALID_THEMES below, add a `[data-theme="<id>"]`
-// block in app/globals.css, and add the theme metadata to THEMES in
-// app/page.tsx (plus the matching bootstrap script in app/layout.tsx).
+// Built-in palette = 25 popular dev themes (13 dark + 12 light). Forkers can
+// add their own via quill.config.json (themes[]); those IDs flow through to
+// the client via window.__QUILL (set by app/layout.tsx).
+//
+// To add a built-in theme: append the id to BUILT_IN_THEME_IDS in
+// lib/config.ts, add a `[data-theme="<id>"]` block in app/globals.css, and
+// add the swatch metadata to THEMES in app/_Home.tsx.
 
-export type Theme =
-  // dark (13)
-  | 'oled'
-  | 'dracula'
-  | 'one-dark'
-  | 'tokyo-night'
-  | 'nord'
-  | 'solarized-dark'
-  | 'gruvbox-dark'
-  | 'monokai'
-  | 'catppuccin-mocha'
-  | 'night-owl'
-  | 'synthwave'
-  | 'github-dark'
-  | 'palenight'
-  // light (12)
-  | 'solarized-light'
-  | 'github-light'
-  | 'catppuccin-latte'
-  | 'one-light'
-  | 'tokyo-night-light'
-  | 'ayu-light'
-  | 'gruvbox-light'
-  | 'quiet-light'
-  | 'light-plus'
-  | 'material-lighter'
-  | 'nord-light'
-  | 'min-light'
+// Theme is just a string — IDs come from runtime config and aren't known
+// at compile time. Validation happens at runtime via the allowed set
+// the server injects into window.__QUILL.
+export type Theme = string
 
 const THEME_KEY = 'quill_theme'
-const DEFAULT_THEME: Theme = 'dracula'
 
-const VALID_THEMES = new Set<Theme>([
-  // dark
-  'oled',
-  'dracula', 'one-dark', 'tokyo-night', 'nord', 'solarized-dark',
-  'gruvbox-dark', 'monokai', 'catppuccin-mocha', 'night-owl',
-  'synthwave', 'github-dark', 'palenight',
-  // light
-  'solarized-light', 'github-light', 'catppuccin-latte',
-  'one-light', 'tokyo-night-light', 'ayu-light', 'gruvbox-light',
-  'quiet-light', 'light-plus', 'material-lighter', 'nord-light', 'min-light',
-])
+// Read SSR-injected globals. SSR safe: returns sensible fallbacks when
+// window isn't defined yet (server render, tests).
+function getInjectedAllowedThemes(): string[] | null {
+  if (typeof window === 'undefined') return null
+  const w = window as unknown as { __QUILL?: { allowedThemeIds?: string[] } }
+  return w.__QUILL?.allowedThemeIds ?? null
+}
+function getInjectedDefaultTheme(): string {
+  if (typeof window === 'undefined') return 'dracula'
+  const w = window as unknown as { __QUILL?: { defaultTheme?: string } }
+  return w.__QUILL?.defaultTheme ?? 'dracula'
+}
 
 export function getTheme(): Theme {
-  if (typeof window === 'undefined') return DEFAULT_THEME
+  if (typeof window === 'undefined') return 'dracula'
   const stored = localStorage.getItem(THEME_KEY)
-  // Guard against stale IDs from older theme palettes — fall back to the
-  // default so a user with `quill_theme=tweed` (old guitar-amp palette)
-  // doesn't end up with a broken UI after pulling the new themes.
-  return stored && VALID_THEMES.has(stored as Theme) ? (stored as Theme) : DEFAULT_THEME
+  const allowed = getInjectedAllowedThemes()
+  const fallback = getInjectedDefaultTheme()
+  // Guard against stale IDs (e.g. a forker removed a custom theme but a
+  // user still has the old id in localStorage) — fall back to default.
+  if (!stored) return fallback
+  if (!allowed) return stored  // server didn't inject — trust the value
+  return allowed.includes(stored) ? stored : fallback
 }
 
 export function saveTheme(theme: Theme) {

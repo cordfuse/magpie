@@ -1,6 +1,12 @@
 import type { Metadata, Viewport } from 'next'
 import { Inter } from 'next/font/google'
+import { loadQuillConfig } from '@/lib/config'
 import './globals.css'
+
+// Re-render the layout per request so a config-file change picks up on the
+// next page load without a rebuild.
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
 
 // Modern UI font — Inter is the de-facto open alternative to Google Sans
 // (used by Vercel, OpenAI, etc.). next/font/google self-hosts at build,
@@ -11,28 +17,49 @@ const inter = Inter({
   variable: '--font-sans',
 })
 
-export const metadata: Metadata = {
-  title: 'Quill',
-  description: 'Quill — an agent-agnostic AI chatbot framework',
-  manifest: '/manifest.json',
-  icons: { apple: '/icons/icon-192.png', icon: '/icons/icon-192.png' },
+// Metadata + viewport are exported as functions so they run per-request
+// instead of being baked at build (Next allows both — async/sync funcs
+// trigger dynamic evaluation). Lets the config file changes flow without
+// rebuild.
+export async function generateMetadata(): Promise<Metadata> {
+  const { config } = loadQuillConfig()
+  return {
+    title: config.name,
+    description: config.tagline,
+    icons: { apple: '/icons/icon-192.png', icon: '/icons/icon-192.png' },
+  }
 }
 
-export const viewport: Viewport = {
-  themeColor: '#282a36',
-  width: 'device-width',
-  initialScale: 1,
+export async function generateViewport(): Promise<Viewport> {
+  const { themeColor } = loadQuillConfig()
+  return { themeColor, width: 'device-width', initialScale: 1 }
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
+  const { config, themeCss, allowedThemeIds, defaultTheme } = loadQuillConfig()
+
+  // Inline pre-hydration theme bootstrap: build a JS map of allowed theme
+  // IDs (built-ins + custom) so the picker's stored choice validates before
+  // React hydrates. Also stashes the config on window so client code can
+  // read branding (header text, footer link) without a server round-trip.
+  const themeBootstrap = `(function(){try{var T={${allowedThemeIds.map(id => `'${id}':1`).join(',')}};var t=localStorage.getItem('quill_theme');document.documentElement.setAttribute('data-theme',T[t]?t:'${defaultTheme}')}catch(e){}})()`
+  const configBootstrap = `window.__QUILL=${JSON.stringify({
+    name: config.name,
+    shortName: config.shortName,
+    tagline: config.tagline,
+    checkForUpdatesUrl: config.checkForUpdatesUrl,
+    defaultTheme,
+    allowedThemeIds,
+    customThemes: config.themes,
+  })};`
+
   return (
     <html lang="en" className={`h-dvh ${inter.variable}`} suppressHydrationWarning>
       <head>
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `(function(){try{var T={oled:1,dracula:1,'one-dark':1,'tokyo-night':1,nord:1,'solarized-dark':1,'gruvbox-dark':1,monokai:1,'catppuccin-mocha':1,'night-owl':1,synthwave:1,'github-dark':1,palenight:1,'solarized-light':1,'github-light':1,'catppuccin-latte':1,'one-light':1,'tokyo-night-light':1,'ayu-light':1,'gruvbox-light':1,'quiet-light':1,'light-plus':1,'material-lighter':1,'nord-light':1,'min-light':1};var t=localStorage.getItem('quill_theme');document.documentElement.setAttribute('data-theme',T[t]?t:'dracula')}catch(e){}})()`,
-          }}
-        />
+        {themeCss && (
+          <style dangerouslySetInnerHTML={{ __html: themeCss }} />
+        )}
+        <script dangerouslySetInnerHTML={{ __html: configBootstrap + themeBootstrap }} />
       </head>
       <body className="h-dvh overflow-hidden">
         {children}

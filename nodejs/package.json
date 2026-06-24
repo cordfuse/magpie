@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev --turbopack",
-    "build": "next build && rm -rf .next/standalone/.next/static .next/standalone/public && cp -r .next/static .next/standalone/.next/static && cp -r public .next/standalone/public && cp -f quill-mcp.json .next/standalone/quill-mcp.json 2>/dev/null || true",
+    "build": "next build && rm -rf .next/standalone/.next/static .next/standalone/public && cp -r .next/static .next/standalone/.next/static && cp -r public .next/standalone/public && cp -f quill-mcp.json .next/standalone/quill-mcp.json 2>/dev/null || true && cp -f quill.config.json .next/standalone/quill.config.json 2>/dev/null || true",
     "start": "node --env-file-if-exists=.env.local .next/standalone/server.js",
     "lint": "next lint"
   },

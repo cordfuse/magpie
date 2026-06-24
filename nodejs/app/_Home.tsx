@@ -64,12 +64,37 @@ const THEMES: ThemeMeta[] = [
   { id: 'min-light',         label: 'Min Light',        desc: 'Minimal',          bg: '#fbfbfb', primary: '#2196f3', fg: '#222222' },
 ]
 
-const THEME_GROUPS: { label: string; ids: Theme[] }[] = [
+const BUILT_IN_THEME_GROUPS: { label: string; ids: Theme[] }[] = [
   { label: 'Dark',  ids: ['oled','dracula','one-dark','tokyo-night','nord','solarized-dark','gruvbox-dark','monokai','catppuccin-mocha','night-owl','synthwave','github-dark','palenight'] },
   { label: 'Light', ids: ['solarized-light','github-light','catppuccin-latte','one-light','tokyo-night-light','ayu-light','gruvbox-light','quiet-light','light-plus','material-lighter','nord-light','min-light'] },
 ]
 
 const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION ?? '0.1.0'
+
+// Branding pulled from window.__QUILL (injected by app/layout.tsx from
+// the runtime quill.config.json read). All fields fall back to "Quill"
+// defaults when window or the global aren't available (SSR, tests).
+interface QuillBranding {
+  name: string
+  shortName: string
+  checkForUpdatesUrl: string
+  customThemes: { id: string; name: string; category: 'dark' | 'light'; swatches?: [string, string, string]; colors?: Record<string, string> }[]
+  hideBuiltIns: boolean
+}
+function getQuillBranding(): QuillBranding {
+  if (typeof window === 'undefined') {
+    return { name: 'Quill', shortName: 'Quill', checkForUpdatesUrl: '#', customThemes: [], hideBuiltIns: false }
+  }
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const w = (window as any).__QUILL ?? {}
+  return {
+    name: w.name ?? 'Quill',
+    shortName: w.shortName ?? 'Quill',
+    checkForUpdatesUrl: w.checkForUpdatesUrl ?? '#',
+    customThemes: Array.isArray(w.customThemes) ? w.customThemes : [],
+    hideBuiltIns: !!w.hideBuiltInThemes,
+  }
+}
 
 // ─── icons ───────────────────────────────────────────────────────────────────
 
@@ -264,7 +289,35 @@ function SettingsPanel({
     setTimeout(onClose, 240)
   }
 
-  const active = THEMES.find(t => t.id === theme) ?? THEMES[0]
+  // Merge built-in themes with any custom themes from quill.config.json
+  // (read at runtime via window.__QUILL). Custom themes are appended to the
+  // built-in groups by category; if hideBuiltIns is true, only customs show.
+  const branding = getQuillBranding()
+  const customThemeMeta: ThemeMeta[] = branding.customThemes.map(t => ({
+    id: t.id,
+    label: t.name,
+    desc: t.category === 'dark' ? 'Custom dark' : 'Custom light',
+    bg: t.colors?.bg ?? '#000000',
+    primary: t.colors?.primary ?? '#888888',
+    fg: t.colors?.fg ?? '#ffffff',
+  }))
+  const THEMES_LIVE: ThemeMeta[] = branding.hideBuiltIns ? customThemeMeta : [...THEMES, ...customThemeMeta]
+  const THEME_GROUPS_LIVE: { label: string; ids: Theme[] }[] = (() => {
+    const baseGroups = branding.hideBuiltIns ? [] : BUILT_IN_THEME_GROUPS
+    const customDark = customThemeMeta.filter(t => branding.customThemes.find(c => c.id === t.id)?.category === 'dark').map(t => t.id)
+    const customLight = customThemeMeta.filter(t => branding.customThemes.find(c => c.id === t.id)?.category === 'light').map(t => t.id)
+    const out: { label: string; ids: Theme[] }[] = baseGroups.map(g => ({
+      label: g.label,
+      ids: g.label === 'Dark' ? [...g.ids, ...customDark] : g.label === 'Light' ? [...g.ids, ...customLight] : g.ids,
+    }))
+    if (branding.hideBuiltIns) {
+      if (customDark.length) out.push({ label: 'Dark', ids: customDark })
+      if (customLight.length) out.push({ label: 'Light', ids: customLight })
+    }
+    return out
+  })()
+
+  const active = THEMES_LIVE.find(t => t.id === theme) ?? THEMES_LIVE[0]
   const activeProvider = providers.find(p => p.id === selectedProvider) ?? providers[0]
 
   return (
@@ -300,11 +353,11 @@ function SettingsPanel({
                 <>
                   <div className="fixed inset-0 z-10" onClick={() => setThemeOpen(false)} />
                   <div className="absolute left-0 right-0 top-full z-20 mt-1 rounded-lg border border-white/10 bg-surface-2 shadow-xl overflow-hidden max-h-[60vh] overflow-y-auto">
-                    {THEME_GROUPS.map(group => (
+                    {THEME_GROUPS_LIVE.map(group => (
                       <div key={group.label}>
                         <p className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-fg-4 bg-surface">{group.label}</p>
                         {group.ids.map(id => {
-                          const t = THEMES.find(x => x.id === id)
+                          const t = THEMES_LIVE.find(x => x.id === id)
                           if (!t) return null
                           const isActive = theme === t.id
                           return (
@@ -480,7 +533,7 @@ function SettingsPanel({
           >
             Check for updates
           </button>
-          <span>Quill v{APP_VERSION}</span>
+          <span>{branding.name} v{APP_VERSION}</span>
         </div>
       </aside>
     </>
@@ -555,6 +608,7 @@ function ConvItem({ conv, active, onSelect, onDeleteRequest, onRename }: {
 function Sidebar({
   visible, onClose, conversations, activeId, query, setQuery,
   onSelectConv, onDeleteConv, onRenameConv, onOpenSettings, onClearAll,
+  appName,
 }: {
   visible: boolean
   onClose: () => void
@@ -567,6 +621,7 @@ function Sidebar({
   onRenameConv: (id: string, title: string) => void
   onOpenSettings: () => void
   onClearAll: () => void
+  appName: string
 }) {
   const q = query.trim().toLowerCase()
   const filtered = q
@@ -587,7 +642,7 @@ function Sidebar({
         <div className="flex items-center justify-between px-3 py-3 shrink-0 min-w-[260px]">
           <div className="flex items-center gap-2.5">
             <QuillIcon />
-            <span className="text-sm font-medium text-fg whitespace-nowrap">Quill</span>
+            <span className="text-sm font-medium text-fg whitespace-nowrap">{appName}</span>
           </div>
           <button onClick={onClose} className="flex h-7 w-7 items-center justify-center rounded-lg text-fg-3 hover:bg-surface-2 hover:text-fg transition-colors lg:hidden" aria-label="Close sidebar">
             <CloseIcon />
@@ -845,7 +900,7 @@ function MessageItem({ msg, streaming, isLastAssistant, onEditAndResend, onRegen
 
 // ─── main page ───────────────────────────────────────────────────────────────
 
-export default function Home({ initialConvId }: { initialConvId?: string } = {}) {
+export default function Home({ initialConvId, appName = 'Quill' }: { initialConvId?: string; appName?: string } = {}) {
   const [conversations, setConversations] = useState<Conversation[]>([])
   const [activeId, setActiveId] = useState<string | null>(null)
   const [messages, setMessages] = useState<ChatMessage[]>([])
@@ -1357,6 +1412,7 @@ export default function Home({ initialConvId }: { initialConvId?: string } = {})
           label: `all ${conversations.length} conversation${conversations.length === 1 ? '' : 's'}`,
           doDelete: clearAll,
         })}
+        appName={appName}
       />
 
       {/* main column */}
@@ -1372,7 +1428,7 @@ export default function Home({ initialConvId }: { initialConvId?: string } = {})
           </button>
           <span className="flex items-center gap-1.5">
             <QuillIcon />
-            <h1 className="text-sm font-medium text-fg">Quill</h1>
+            <h1 className="text-sm font-medium text-fg">{appName}</h1>
           </span>
           <div className="flex-1" />
           {activeId && (

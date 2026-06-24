@@ -1,0 +1,15 @@
+{
+  "$comment": "Quill branding + theme config. Edit this file to rebrand for your fork — rebuild required (npm run build). All fields are optional; missing fields fall back to Quill defaults.",
+
+  "name": "Quill",
+  "shortName": "Quill",
+  "tagline": "Agent-agnostic AI chatbot framework",
+  "defaultSystemPrompt": "You are a helpful AI assistant.",
+  "checkForUpdatesUrl": "https://github.com/cordfuse/quill/releases",
+
+  "defaultTheme": "dracula",
+  "hideBuiltInThemes": false,
+
+  "$themesExample": "Each theme overrides every CSS custom property the app uses. category is 'dark' or 'light'. swatches is a 3-color preview shown in the Settings picker. Theme id must be a slug.",
+  "themes": []
+}

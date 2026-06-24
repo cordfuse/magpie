@@ -3,12 +3,20 @@ import { getDeviceIdFromRequest } from '@/lib/server/jwt'
 import {
   runChat, runChatStream, findProvider, isModelValidForProvider,
 } from '@/lib/server/ai-tools'
+import { loadQuillConfig } from '@/lib/config'
 
 export const maxDuration = 300
 
-const DEFAULT_SYSTEM_PROMPT = process.env.QUILL_SYSTEM_PROMPT ?? 'You are a helpful AI assistant.'
 const ENV_PROVIDER = process.env.QUILL_PROVIDER ?? 'anthropic'
 const ENV_MODEL = process.env.QUILL_MODEL ?? 'claude-sonnet-4-6'
+
+// System prompt resolution chain: client per-request → QUILL_SYSTEM_PROMPT
+// env → quill.config.json defaultSystemPrompt → hardcoded fallback.
+// Config is read fresh per request so drop-in JSON changes apply immediately.
+function getDefaultSystemPrompt(): string {
+  if (process.env.QUILL_SYSTEM_PROMPT) return process.env.QUILL_SYSTEM_PROMPT
+  return loadQuillConfig().config.defaultSystemPrompt
+}
 
 // Generation defaults — env var (operator deploy default) → hardcoded fallback.
 // Client may override per-request via the request body; resolveGen() applies
@@ -26,7 +34,7 @@ function resolveTemperature(clientValue: unknown): number {
 }
 function resolveSystemPrompt(clientValue: unknown): string {
   if (typeof clientValue === 'string' && clientValue.trim().length > 0) return clientValue
-  return DEFAULT_SYSTEM_PROMPT
+  return getDefaultSystemPrompt()
 }
 
 export async function POST(request: NextRequest) {
