@@ -407,7 +407,7 @@ function SettingsPanel({
           </div>
         </div>
 
-        <div className="px-5 py-3 flex items-center justify-between text-[10px] text-fg-4">
+        <div className="px-5 py-3 flex items-center justify-between text-xs text-fg-4">
           <button
             onClick={() => window.location.reload()}
             className="hover:text-fg-2 transition-colors"
