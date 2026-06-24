@@ -1,5 +1,15 @@
 import type { Metadata, Viewport } from 'next'
+import { Inter } from 'next/font/google'
 import './globals.css'
+
+// Modern UI font — Inter is the de-facto open alternative to Google Sans
+// (used by Vercel, OpenAI, etc.). next/font/google self-hosts at build,
+// no runtime fetch, no FOUT. Exposed as --font-sans for globals.css.
+const inter = Inter({
+  subsets: ['latin'],
+  display: 'swap',
+  variable: '--font-sans',
+})
 
 export const metadata: Metadata = {
   title: 'Quill',
@@ -16,7 +26,7 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className="h-dvh" suppressHydrationWarning>
+    <html lang="en" className={`h-dvh ${inter.variable}`} suppressHydrationWarning>
       <head>
         <script
           dangerouslySetInnerHTML={{

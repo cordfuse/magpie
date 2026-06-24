@@ -423,13 +423,22 @@
 
 /* ─── Base ───────────────────────────────────────────────────────────────── */
 
+html {
+  /* Smidge up from the browser default 16px → 17px. Tailwind's text-*
+     classes are rem-based, so every text-xs/sm/base/lg scales proportionally
+     (text-sm 14px → ~14.9px, text-base 16px → 17px). One knob, no
+     per-component churn. */
+  font-size: 17px;
+}
+
 html, body {
   height: 100%;
   margin: 0;
   padding: 0;
   background: var(--bg);
   color: var(--fg);
-  font-family: 'Google Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  /* --font-sans is set by next/font/google (Inter) in layout.tsx. */
+  font-family: var(--font-sans), -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   -webkit-font-smoothing: antialiased;
   transition: background 0.25s ease, color 0.25s ease;
 }
