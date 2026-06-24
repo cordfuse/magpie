@@ -3,8 +3,8 @@ import './globals.css'
 import UpdateBanner from './UpdateBanner'
 
 export const metadata: Metadata = {
-  title: 'Mighty AI QR',
-  description: 'Generate NUX MightyAmp QR codes from natural language tone descriptions',
+  title: 'Quill',
+  description: 'Quill — an agent-agnostic AI chatbot framework',
   manifest: '/manifest.json',
   icons: { apple: '/icons/icon-192.png', icon: '/icons/icon-192.png' },
 }
@@ -21,7 +21,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <head>
         <script
           dangerouslySetInnerHTML={{
-            __html: `(function(){try{var t=localStorage.getItem('maq_theme');if(t)document.documentElement.setAttribute('data-theme',t)}catch(e){}})()`,
+            __html: `(function(){try{var t=localStorage.getItem('quill_theme');if(t)document.documentElement.setAttribute('data-theme',t)}catch(e){}})()`,
           }}
         />
       </head>
