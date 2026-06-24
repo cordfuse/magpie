@@ -1,11 +1,30 @@
-import Anthropic from '@anthropic-ai/sdk'
+import { TokenJS } from 'token.js'
 
-// Native web search tool — Anthropic executes it server-side and returns
-// `web_search_tool_result` blocks alongside the response. No manual tool
-// loop needed. Override the version via WEB_SEARCH_TOOL_VERSION env var.
-function getNativeWebSearchTool(): { type: string; name: 'web_search' } {
-  return { type: process.env.WEB_SEARCH_TOOL_VERSION ?? 'web_search_20250305', name: 'web_search' }
-}
+// token.js doesn't re-export its LLMProvider type from the main entry,
+// so we mirror the union here. Update if token.js adds providers.
+export type Provider =
+  | 'openai'
+  | 'anthropic'
+  | 'gemini'
+  | 'cohere'
+  | 'bedrock'
+  | 'mistral'
+  | 'groq'
+  | 'perplexity'
+  | 'ai21'
+  | 'openrouter'
+  | 'openai-compatible'
+
+// token.js v0.7.1's built-in Anthropic model list tops out at
+// claude-3-7-sonnet. Register the Claude 4.x family explicitly so
+// requests against claude-opus-4-7 / claude-sonnet-4-6 / claude-haiku-4-5
+// don't get rejected by token.js's compile-time / runtime checks.
+// Update this list as Anthropic releases new models; token.js core may
+// catch up in future versions.
+const tokenjs = new TokenJS()
+tokenjs.extendModelList('anthropic', 'claude-opus-4-7',          { streaming: true, json: false, toolCalls: true, images: true })
+tokenjs.extendModelList('anthropic', 'claude-sonnet-4-6',        { streaming: true, json: false, toolCalls: true, images: true })
+tokenjs.extendModelList('anthropic', 'claude-haiku-4-5-20251001',{ streaming: true, json: false, toolCalls: true, images: true })
 
 export interface ChatMessage {
   role: 'user' | 'assistant'
@@ -17,49 +36,35 @@ export interface ChatResult {
   sources?: { title: string; url: string }[]
 }
 
-function extractSources(content: Anthropic.ContentBlock[]): { title: string; url: string }[] {
-  const sources: { title: string; url: string }[] = []
-  for (const block of content) {
-    if (block.type === 'web_search_tool_result') {
-      const results = block.content
-      if (Array.isArray(results)) {
-        for (const r of results) {
-          if (r.type === 'web_search_result') {
-            sources.push({ title: r.title, url: r.url })
-          }
-        }
-      }
-    }
-  }
-  return sources
-}
-
-type SystemInput = string | Array<{ type: 'text'; text: string; cache_control?: { type: 'ephemeral' } }>
-
 export async function runChat(
-  client: Anthropic,
   messages: ChatMessage[],
-  model = 'claude-sonnet-4-6',
-  systemPrompt: SystemInput = 'You are a helpful AI assistant.',
+  provider: Provider = 'anthropic',
+  model: string = 'claude-sonnet-4-6',
+  systemPrompt: string = 'You are a helpful AI assistant.',
 ): Promise<ChatResult> {
-  const tools = [getNativeWebSearchTool()] as Anthropic.MessageCreateParams['tools']
-  const apiMessages: Anthropic.MessageParam[] = messages.map(m => ({ role: m.role, content: m.content }))
+  const apiMessages = [
+    { role: 'system' as const, content: systemPrompt },
+    ...messages.map(m => ({ role: m.role, content: m.content })),
+  ]
 
-  const response = await client.messages.create({
+  const response = await tokenjs.chat.completions.create({
+    provider,
     model,
-    max_tokens: 1024,
-    system: systemPrompt,
-    tools,
     messages: apiMessages,
   })
 
-  const u = response.usage as unknown as Record<string, number>
-  console.log(`[cache] in=${u.input_tokens} out=${u.output_tokens} cache_create=${u.cache_creation_input_tokens ?? 0} cache_read=${u.cache_read_input_tokens ?? 0}`)
-
-  const sources = extractSources(response.content as Anthropic.ContentBlock[])
-  const textBlock = response.content.find(b => b.type === 'text')
-  return {
-    message: textBlock?.type === 'text' ? textBlock.text : '',
-    sources: sources.length > 0 ? sources : undefined,
+  const text = response.choices[0]?.message?.content ?? ''
+  const usage = response.usage
+  if (usage) {
+    console.log(`[chat] in=${usage.prompt_tokens} out=${usage.completion_tokens}`)
   }
+
+  // NOTE: Anthropic-native web search was dropped in this swap — it doesn't
+  // exist on the OpenAI-shaped surface that token.js exposes. If you want
+  // web search back, implement it as a tool call (works across providers,
+  // requires defining the tool schema + handling tool_use in a loop) or
+  // wrap a provider-specific search path. Sources field is preserved on the
+  // ChatResult type for forward compatibility.
+
+  return { message: text }
 }
