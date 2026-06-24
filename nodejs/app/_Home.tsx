@@ -640,7 +640,7 @@ function ConvItem({ conv, active, onSelect, onDeleteRequest, onRename }: {
 function Sidebar({
   visible, onClose, conversations, activeId, query, setQuery,
   onSelectConv, onDeleteConv, onRenameConv, onOpenSettings, onClearAll,
-  appName,
+  appName, showSettings,
 }: {
   visible: boolean
   onClose: () => void
@@ -654,6 +654,7 @@ function Sidebar({
   onOpenSettings: () => void
   onClearAll: () => void
   appName: string
+  showSettings: boolean
 }) {
   const q = query.trim().toLowerCase()
   const filtered = q
@@ -732,16 +733,20 @@ function Sidebar({
           }
         </div>
 
-        {/* footer: settings shortcut */}
-        <div className="shrink-0 min-w-[260px] border-t border-white/10 px-3 py-2 flex items-center">
-          <button
-            onClick={onOpenSettings}
-            className="flex items-center gap-2 px-2 py-1.5 text-xs text-fg-3 hover:text-fg transition-colors"
-            title="Settings"
-          >
-            <GearIcon /> Settings
-          </button>
-        </div>
+        {/* footer: settings shortcut — gated on showSettings so the kiosk
+            QUILL_SHOW_SETTINGS=0 flag truly removes every path into the
+            settings panel (the header gear is gated separately). */}
+        {showSettings && (
+          <div className="shrink-0 min-w-[260px] border-t border-white/10 px-3 py-2 flex items-center">
+            <button
+              onClick={onOpenSettings}
+              className="flex items-center gap-2 px-2 py-1.5 text-xs text-fg-3 hover:text-fg transition-colors"
+              title="Settings"
+            >
+              <GearIcon /> Settings
+            </button>
+          </div>
+        )}
       </aside>
     </>
   )
@@ -1491,6 +1496,7 @@ export default function Home({
           onDeleteConv={(id, title) => setConfirmDelete({ label: `"${title}"`, doDelete: () => removeConversation(id) })}
           onRenameConv={handleRename}
           onOpenSettings={() => { setSettingsOpen(true); setSidebarOpen(false) }}
+          showSettings={flags.showSettings}
           onClearAll={() => setConfirmDelete({
             label: `all ${conversations.length} conversation${conversations.length === 1 ? '' : 's'}`,
             doDelete: clearAll,
