@@ -3,9 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "NODE_OPTIONS='--experimental-sqlite' next dev --turbopack",
+    "dev": "next dev --turbopack",
     "build": "next build",
-    "start": "node --experimental-sqlite .next/standalone/server.js",
+    "start": "node .next/standalone/server.js",
     "lint": "next lint"
   },
   "dependencies": {
