@@ -21,7 +21,17 @@
 
 Embeddable AI chatbot framework. Drop-in branding, kiosk-friendly, MCP-ready.
 
-A single Next.js app you self-host. Mount a config volume, point it at any of 12 LLM providers, and serve a polished chat UI from a Docker container in under a minute. Built to embed in third-party sites (support widget, demo kiosk, internal tool) without code changes.
+## The problem
+
+OSS chat starters split into two camps. **Full-fat platforms** (Open WebUI, LibreChat) are feature-rich but built around "I run my own AI workbench" — hard to embed in a customer-facing site, hard to lock the UI down for a support widget, hard to rebrand without forking and maintaining a soft fork forever. **Minimal starters** (the Vercel chatbot template) are easy to clone, but every polish detail — multi-provider, MCP, attachments, streaming-that-survives-mobile, brand-it-yourself config, kiosk lockdown — is on you to build.
+
+The middle ground — *"a polished chatbot I can drop into my site, white-label, and self-host in a container"* — doesn't really exist in OSS. It's either build-it-yourself or pay for SaaS (Intercom, Crisp, Tidio) that owns your branding and your conversations.
+
+## The solution
+
+Quill: one Docker image + one mounted config volume. Set env vars for an LLM provider and a JWT secret, edit one JSON file to rebrand, and you have a branded chatbot running on your domain. To lock it down for an embed or public kiosk deployment, flip a handful of `QUILL_SHOW_*` env flags — the matching UI controls disappear and the features keep running transparently server-side.
+
+A single Next.js app, no database, no signup. Point it at any of 12 LLM providers, mount a config volume of icons/themes/MCP servers, and ship.
 
 ## Features
 
