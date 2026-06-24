@@ -1,4 +1,5 @@
 import { TokenJS } from 'token.js'
+import { WEB_SEARCH_TOOL, executeToolCall, type SearchResult } from './web-search'
 
 // token.js doesn't re-export its LLMProvider type from the main entry,
 // so we mirror the union here. Update if token.js adds providers.
@@ -281,44 +282,98 @@ export interface ChatResult {
   sources?: { title: string; url: string }[]
 }
 
-function buildCallOptions(p: ProviderInfo, model: string, apiMessages: unknown[], stream: boolean) {
+function buildCallOptions(
+  p: ProviderInfo,
+  model: string,
+  apiMessages: unknown[],
+  stream: boolean,
+  withTools: boolean = false,
+) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const opts: any = { provider: p.tokenjsProvider, model, messages: apiMessages, stream }
   // For openai-compatible providers token.js requires the baseURL in the
   // constructor (handled by getTokenInstance) but still expects a non-empty
   // apiKey on the call. Most local servers accept any string.
   if (p.category === 'local') opts.apiKey = 'local'
+  if (withTools) opts.tools = [WEB_SEARCH_TOOL]
   return opts
 }
+
+// Safety limit on tool-call rounds — prevents a model from looping
+// indefinitely (search → think → search → think → ...).
+const MAX_TOOL_ROUNDS = 5
+
+interface AccumulatedToolCall {
+  id: string
+  type: 'function'
+  function: { name: string; arguments: string }
+}
+
+interface SystemMessage { role: 'system'; content: string }
+interface UserMessage   { role: 'user'; content: string | ContentBlock[] }
+interface AsstTextMsg   { role: 'assistant'; content: string }
+interface AsstToolMsg   { role: 'assistant'; content: string | null; tool_calls: AccumulatedToolCall[] }
+interface ToolResultMsg { role: 'tool'; tool_call_id: string; content: string }
+type WireMessage = SystemMessage | UserMessage | AsstTextMsg | AsstToolMsg | ToolResultMsg
+
+export interface RunChatOptions {
+  webSearch?: boolean
+}
+
+// Yielded by runChatStream — text deltas plus optional events the route
+// can forward to the UI (search-in-progress, sources after a search round).
+export type StreamEvent =
+  | { type: 'delta'; content: string }
+  | { type: 'tool_running'; name: string; query?: string }
+  | { type: 'sources'; sources: { title: string; url: string }[] }
 
 export async function runChat(
   messages: ChatMessage[],
   providerId: string = 'anthropic',
   model: string = 'claude-sonnet-4-6',
   systemPrompt: string = 'You are a helpful AI assistant.',
+  options: RunChatOptions = {},
 ): Promise<ChatResult> {
   const p = findProvider(providerId)
   if (!p) throw new Error(`Unknown provider '${providerId}'`)
 
-  const apiMessages = [
-    { role: 'system' as const, content: systemPrompt },
-    ...messages.map(m => ({ role: m.role, content: m.content })),
+  const inst = getTokenInstance(p)
+  const wireMessages: WireMessage[] = [
+    { role: 'system', content: systemPrompt },
+    ...messages.map(m => ({ role: m.role, content: m.content })) as (UserMessage | AsstTextMsg)[],
   ]
 
-  const inst = getTokenInstance(p)
-  const response = await inst.chat.completions.create(
-    buildCallOptions(p, model, apiMessages, false),
-  )
+  const sources: { title: string; url: string }[] = []
 
-  const text = response.choices[0]?.message?.content ?? ''
-  const usage = response.usage
-  if (usage) console.log(`[chat] in=${usage.prompt_tokens} out=${usage.completion_tokens}`)
+  for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
+    const response = await inst.chat.completions.create(
+      buildCallOptions(p, model, wireMessages, false, !!options.webSearch),
+    )
+    const choice = response.choices[0]
+    const usage = response.usage
+    if (usage) console.log(`[chat] round=${round} in=${usage.prompt_tokens} out=${usage.completion_tokens}`)
 
-  // NOTE: Anthropic-native web search was dropped in the multi-provider
-  // swap — it isn't part of the OpenAI-shaped surface token.js exposes.
-  // Sources field on ChatResult preserved for forward compatibility.
+    const msg = choice?.message
+    const toolCalls = (msg?.tool_calls ?? []) as AccumulatedToolCall[]
+    if (!toolCalls.length) {
+      return { message: msg?.content ?? '', sources: sources.length ? sources : undefined }
+    }
 
-  return { message: text }
+    wireMessages.push({ role: 'assistant', content: msg?.content ?? null, tool_calls: toolCalls })
+    for (const tc of toolCalls) {
+      const result = await executeToolCall(tc.function.name, tc.function.arguments)
+      wireMessages.push({ role: 'tool', tool_call_id: tc.id, content: result })
+      // Mine sources for the UI.
+      try {
+        const parsed = JSON.parse(result) as { results?: SearchResult[] }
+        if (Array.isArray(parsed.results)) {
+          for (const r of parsed.results) sources.push({ title: r.title, url: r.url })
+        }
+      } catch { /* result wasn't JSON / had no results — skip */ }
+    }
+  }
+
+  return { message: '(reached max tool-call rounds)', sources: sources.length ? sources : undefined }
 }
 
 export async function* runChatStream(
@@ -326,25 +381,84 @@ export async function* runChatStream(
   providerId: string = 'anthropic',
   model: string = 'claude-sonnet-4-6',
   systemPrompt: string = 'You are a helpful AI assistant.',
-): AsyncGenerator<string, void, unknown> {
+  options: RunChatOptions = {},
+): AsyncGenerator<StreamEvent, void, unknown> {
   const p = findProvider(providerId)
   if (!p) throw new Error(`Unknown provider '${providerId}'`)
 
-  const apiMessages = [
-    { role: 'system' as const, content: systemPrompt },
-    ...messages.map(m => ({ role: m.role, content: m.content })),
+  const inst = getTokenInstance(p)
+  const wireMessages: WireMessage[] = [
+    { role: 'system', content: systemPrompt },
+    ...messages.map(m => ({ role: m.role, content: m.content })) as (UserMessage | AsstTextMsg)[],
   ]
 
-  // token.js's create() is overloaded on `stream: true`; the helper
-  // returns the options object loosely typed so we cast back to the
-  // streaming iterable shape here to keep TS happy.
-  const inst = getTokenInstance(p)
-  const stream = await inst.chat.completions.create(
-    buildCallOptions(p, model, apiMessages, true),
-  ) as unknown as AsyncIterable<{ choices: Array<{ delta?: { content?: string } }> }>
+  for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
+    // token.js's create() is overloaded on `stream: true`; cast the result
+    // to the streaming iterable shape to keep TS happy.
+    const stream = await inst.chat.completions.create(
+      buildCallOptions(p, model, wireMessages, true, !!options.webSearch),
+    ) as unknown as AsyncIterable<{
+      choices: Array<{
+        delta?: {
+          content?: string
+          tool_calls?: Array<{
+            index: number
+            id?: string
+            function?: { name?: string; arguments?: string }
+          }>
+        }
+        finish_reason?: string | null
+      }>
+    }>
 
-  for await (const chunk of stream) {
-    const delta = chunk.choices[0]?.delta?.content
-    if (delta) yield delta
+    const accumulatedToolCalls: AccumulatedToolCall[] = []
+    let accumulatedText = ''
+    let finishReason: string | null = null
+
+    for await (const chunk of stream) {
+      const c = chunk.choices[0]
+      if (c?.delta?.content) {
+        accumulatedText += c.delta.content
+        yield { type: 'delta', content: c.delta.content }
+      }
+      if (c?.delta?.tool_calls) {
+        for (const tcDelta of c.delta.tool_calls) {
+          const i = tcDelta.index ?? 0
+          if (!accumulatedToolCalls[i]) {
+            accumulatedToolCalls[i] = { id: '', type: 'function', function: { name: '', arguments: '' } }
+          }
+          if (tcDelta.id) accumulatedToolCalls[i].id = tcDelta.id
+          if (tcDelta.function?.name) accumulatedToolCalls[i].function.name += tcDelta.function.name
+          if (tcDelta.function?.arguments) accumulatedToolCalls[i].function.arguments += tcDelta.function.arguments
+        }
+      }
+      if (c?.finish_reason) finishReason = c.finish_reason
+    }
+
+    const validToolCalls = accumulatedToolCalls.filter(tc => tc?.id && tc.function.name)
+    if (!validToolCalls.length || finishReason !== 'tool_calls') return
+
+    wireMessages.push({ role: 'assistant', content: accumulatedText || null, tool_calls: validToolCalls })
+
+    for (const tc of validToolCalls) {
+      // Try to parse the query out for the UI hint.
+      let query: string | undefined
+      try { query = (JSON.parse(tc.function.arguments) as { query?: string }).query } catch { /* skip */ }
+      yield { type: 'tool_running', name: tc.function.name, query }
+
+      const result = await executeToolCall(tc.function.name, tc.function.arguments)
+      wireMessages.push({ role: 'tool', tool_call_id: tc.id, content: result })
+
+      // Surface sources to the UI as they arrive.
+      try {
+        const parsed = JSON.parse(result) as { results?: SearchResult[] }
+        if (Array.isArray(parsed.results) && parsed.results.length) {
+          yield {
+            type: 'sources',
+            sources: parsed.results.map(r => ({ title: r.title, url: r.url })),
+          }
+        }
+      } catch { /* skip */ }
+    }
   }
 }

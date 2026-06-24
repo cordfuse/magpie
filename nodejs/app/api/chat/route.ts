@@ -19,7 +19,7 @@ export async function POST(request: NextRequest) {
   }
 
   const body = await request.json()
-  const { messages, stream: wantStream, provider: clientProvider, model: clientModel } = body
+  const { messages, stream: wantStream, provider: clientProvider, model: clientModel, webSearch } = body
 
   if (!Array.isArray(messages) || messages.length === 0) {
     return NextResponse.json({ error: 'Invalid messages' }, { status: 400 })
@@ -90,7 +90,18 @@ export async function POST(request: NextRequest) {
     return raw || 'Internal server error'
   }
 
-  console.log(`[chat] msgs=${messages.length} provider=${provider} model=${model} stream=${!!wantStream}`)
+  // Honor the webSearch flag only if the server has Tavily configured.
+  // Surface a clear 503 if the user enabled search but the operator hasn't
+  // set TAVILY_API_KEY, so they know why their toggle's not working.
+  const wantWebSearch = !!webSearch
+  if (wantWebSearch && !process.env.TAVILY_API_KEY) {
+    return NextResponse.json({
+      error: 'Web search is on but TAVILY_API_KEY isn\'t set on the server.',
+    }, { status: 503 })
+  }
+  const runOpts = { webSearch: wantWebSearch }
+
+  console.log(`[chat] msgs=${messages.length} provider=${provider} model=${model} stream=${!!wantStream} websearch=${wantWebSearch}`)
 
   if (wantStream) {
     const enc = new TextEncoder()
@@ -99,8 +110,9 @@ export async function POST(request: NextRequest) {
         const send = (obj: unknown) =>
           controller.enqueue(enc.encode(`data: ${JSON.stringify(obj)}\n\n`))
         try {
-          for await (const delta of runChatStream(messages, provider, model, DEFAULT_SYSTEM_PROMPT)) {
-            send({ type: 'delta', content: delta })
+          for await (const event of runChatStream(messages, provider, model, DEFAULT_SYSTEM_PROMPT, runOpts)) {
+            // runChatStream yields typed events directly — forward as-is.
+            send(event)
           }
           send({ type: 'done' })
           console.log('[chat] stream done')
@@ -122,7 +134,7 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const result = await runChat(messages, provider, model, DEFAULT_SYSTEM_PROMPT)
+    const result = await runChat(messages, provider, model, DEFAULT_SYSTEM_PROMPT, runOpts)
     console.log('[chat] done')
     return NextResponse.json(result)
   } catch (err) {

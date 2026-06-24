@@ -65,7 +65,12 @@ export interface AvailableProvider {
   models: ProviderModel[]
 }
 
-export async function getProviders(): Promise<AvailableProvider[]> {
+export interface ProvidersResponse {
+  providers: AvailableProvider[]
+  features: { webSearch: boolean }
+}
+
+export async function getProviders(): Promise<ProvidersResponse> {
   let token = getToken()
   if (!token) {
     await authenticate()
@@ -81,7 +86,10 @@ export async function getProviders(): Promise<AvailableProvider[]> {
   }
   if (!res.ok) throw new Error(`Providers fetch failed: ${res.status}`)
   const data = await res.json()
-  return data.providers ?? []
+  return {
+    providers: data.providers ?? [],
+    features: data.features ?? { webSearch: false },
+  }
 }
 
 export interface ProviderModelsResult {
@@ -135,6 +143,13 @@ export async function getProviderModels(providerId: string): Promise<ProviderMod
 export interface ChatOpts {
   provider?: string
   model?: string
+  webSearch?: boolean
+}
+
+// Events the streaming chat endpoint can emit (beyond plain text deltas).
+export interface StreamHooks {
+  onToolRunning?: (info: { name: string; query?: string }) => void
+  onSources?: (sources: { title: string; url: string }[]) => void
 }
 
 export async function sendChat(messages: Message[] | MultimodalMessage[], signal?: AbortSignal, opts: ChatOpts = {}): Promise<ChatResponse> {
@@ -181,6 +196,7 @@ export async function sendChatStream(
   onDelta: (text: string) => void,
   signal?: AbortSignal,
   opts: ChatOpts = {},
+  hooks: StreamHooks = {},
 ): Promise<ChatResponse> {
   let token = getToken()
   if (!token) {
@@ -201,7 +217,7 @@ export async function sendChatStream(
   if (res.status === 401) {
     localStorage.removeItem('auth_token')
     await authenticate()
-    return sendChatStream(messages, onDelta, signal, opts)
+    return sendChatStream(messages, onDelta, signal, opts, hooks)
   }
 
   if (!res.ok || !res.body) {
@@ -217,6 +233,7 @@ export async function sendChatStream(
   const decoder = new TextDecoder()
   let buf = ''
   let accumulated = ''
+  const accumulatedSources: { title: string; url: string }[] = []
 
   while (true) {
     const { done, value } = await reader.read()
@@ -229,7 +246,14 @@ export async function sendChatStream(
       buf = buf.slice(sep + 2)
       if (!evt.startsWith('data: ')) continue
       const payload = evt.slice(6)
-      let obj: { type: string; content?: string; message?: string }
+      let obj: {
+        type: string
+        content?: string
+        message?: string
+        name?: string
+        query?: string
+        sources?: { title: string; url: string }[]
+      }
       try {
         obj = JSON.parse(payload)
       } catch {
@@ -238,11 +262,16 @@ export async function sendChatStream(
       if (obj.type === 'delta' && obj.content) {
         accumulated += obj.content
         onDelta(obj.content)
+      } else if (obj.type === 'tool_running' && obj.name) {
+        hooks.onToolRunning?.({ name: obj.name, query: obj.query })
+      } else if (obj.type === 'sources' && Array.isArray(obj.sources)) {
+        for (const s of obj.sources) accumulatedSources.push(s)
+        hooks.onSources?.(obj.sources)
       } else if (obj.type === 'error') {
         throw new Error(obj.message ?? 'Stream error')
       }
     }
   }
 
-  return { message: accumulated }
+  return { message: accumulated, sources: accumulatedSources.length ? accumulatedSources : undefined }
 }

@@ -151,3 +151,21 @@ export function setSelectedModel(provider: string, model: string) {
   map[provider] = model
   localStorage.setItem(MODELS_KEY, JSON.stringify(map))
 }
+
+// ─── Web search toggle (global, sticky across sessions) ─────────────────────
+//
+// One boolean stored in localStorage. v1 simplification: a single setting
+// applies to whatever conversation is active. Avoids the "no conv id until
+// after first send" chicken-and-egg. Per-conv override can come later.
+
+const WEB_SEARCH_KEY = 'quill_web_search'
+
+export function getWebSearchEnabled(): boolean {
+  if (typeof window === 'undefined') return false
+  return localStorage.getItem(WEB_SEARCH_KEY) === '1'
+}
+
+export function setWebSearchEnabled(enabled: boolean) {
+  if (enabled) localStorage.setItem(WEB_SEARCH_KEY, '1')
+  else localStorage.removeItem(WEB_SEARCH_KEY)
+}

@@ -9,6 +9,7 @@ import {
   loadConversations, upsertConversation, deleteConversation, renameConversation,
   clearAllConversations, autoTitle, relativeTime, getTheme, saveTheme, type Theme,
   getSelectedProvider, setSelectedProvider, getSelectedModel, setSelectedModel,
+  getWebSearchEnabled, setWebSearchEnabled,
 } from '@/lib/storage'
 import type { ChatMessage, Conversation, Attachment } from '@/lib/types'
 
@@ -122,6 +123,9 @@ const EditMsgIcon = () => (
 const RefreshIcon = () => (
   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
 )
+const GlobeIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+)
 const AttachIcon = () => (
   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
 )
@@ -189,6 +193,61 @@ function SettingsPanel({ theme, onTheme, providers, selectedProvider, onProvider
         </div>
 
         <div className="flex-1 overflow-y-auto p-5 space-y-6">
+          {/* Theme */}
+          <div>
+            <p className="text-[10px] font-semibold text-fg-3 uppercase tracking-wider mb-2">Theme</p>
+            <div className="relative">
+              <button
+                onClick={() => setThemeOpen(o => !o)}
+                className="flex w-full items-center gap-2.5 rounded-lg border border-white/10 bg-surface-2 px-3 py-2.5 text-sm text-fg hover:bg-surface-3 transition-colors"
+              >
+                <div className="flex gap-1 shrink-0">
+                  <div style={{ background: active.bg }} className="h-3 w-3 rounded-sm border border-white/10" />
+                  <div style={{ background: active.primary }} className="h-3 w-3 rounded-sm" />
+                  <div style={{ background: active.fg, opacity: 0.7 }} className="h-3 w-3 rounded-sm" />
+                </div>
+                <span className="flex-1 text-left">{active.label}</span>
+                <span className="text-[10px] text-fg-4 truncate max-w-[8rem]">{active.desc}</span>
+                <ChevronIcon open={themeOpen} />
+              </button>
+              {themeOpen && (
+                <>
+                  <div className="fixed inset-0 z-10" onClick={() => setThemeOpen(false)} />
+                  <div className="absolute left-0 right-0 top-full z-20 mt-1 rounded-lg border border-white/10 bg-surface-2 shadow-xl overflow-hidden max-h-[60vh] overflow-y-auto">
+                    {THEME_GROUPS.map(group => (
+                      <div key={group.label}>
+                        <p className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-fg-4 bg-surface">{group.label}</p>
+                        {group.ids.map(id => {
+                          const t = THEMES.find(x => x.id === id)
+                          if (!t) return null
+                          const isActive = theme === t.id
+                          return (
+                            <button
+                              key={t.id}
+                              onClick={() => { onTheme(t.id); setThemeOpen(false) }}
+                              className={`flex w-full items-center gap-2.5 px-3 py-2 text-sm transition-colors ${
+                                isActive ? 'text-primary bg-primary/10' : 'text-fg-2 hover:bg-surface-3 hover:text-fg'
+                              }`}
+                            >
+                              <div className="flex gap-1 shrink-0">
+                                <div style={{ background: t.bg }} className="h-3 w-3 rounded-sm border border-white/10" />
+                                <div style={{ background: t.primary }} className="h-3 w-3 rounded-sm" />
+                                <div style={{ background: t.fg, opacity: 0.7 }} className="h-3 w-3 rounded-sm" />
+                              </div>
+                              <span className="flex-1 text-left">{t.label}</span>
+                              <span className="text-[10px] opacity-50 truncate max-w-[6rem]">{t.desc}</span>
+                              {isActive && <span className="ml-1 text-primary shrink-0">✓</span>}
+                            </button>
+                          )
+                        })}
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+
           {/* Provider */}
           {providers.length > 0 && (
             <div>
@@ -252,61 +311,6 @@ function SettingsPanel({ theme, onTheme, providers, selectedProvider, onProvider
               )}
             </div>
           )}
-
-          {/* Theme */}
-          <div>
-            <p className="text-[10px] font-semibold text-fg-3 uppercase tracking-wider mb-2">Theme</p>
-            <div className="relative">
-              <button
-                onClick={() => setThemeOpen(o => !o)}
-                className="flex w-full items-center gap-2.5 rounded-lg border border-white/10 bg-surface-2 px-3 py-2.5 text-sm text-fg hover:bg-surface-3 transition-colors"
-              >
-                <div className="flex gap-1 shrink-0">
-                  <div style={{ background: active.bg }} className="h-3 w-3 rounded-sm border border-white/10" />
-                  <div style={{ background: active.primary }} className="h-3 w-3 rounded-sm" />
-                  <div style={{ background: active.fg, opacity: 0.7 }} className="h-3 w-3 rounded-sm" />
-                </div>
-                <span className="flex-1 text-left">{active.label}</span>
-                <span className="text-[10px] text-fg-4 truncate max-w-[8rem]">{active.desc}</span>
-                <ChevronIcon open={themeOpen} />
-              </button>
-              {themeOpen && (
-                <>
-                  <div className="fixed inset-0 z-10" onClick={() => setThemeOpen(false)} />
-                  <div className="absolute left-0 right-0 top-full z-20 mt-1 rounded-lg border border-white/10 bg-surface-2 shadow-xl overflow-hidden max-h-[60vh] overflow-y-auto">
-                    {THEME_GROUPS.map(group => (
-                      <div key={group.label}>
-                        <p className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-fg-4 bg-surface">{group.label}</p>
-                        {group.ids.map(id => {
-                          const t = THEMES.find(x => x.id === id)
-                          if (!t) return null
-                          const isActive = theme === t.id
-                          return (
-                            <button
-                              key={t.id}
-                              onClick={() => { onTheme(t.id); setThemeOpen(false) }}
-                              className={`flex w-full items-center gap-2.5 px-3 py-2 text-sm transition-colors ${
-                                isActive ? 'text-primary bg-primary/10' : 'text-fg-2 hover:bg-surface-3 hover:text-fg'
-                              }`}
-                            >
-                              <div className="flex gap-1 shrink-0">
-                                <div style={{ background: t.bg }} className="h-3 w-3 rounded-sm border border-white/10" />
-                                <div style={{ background: t.primary }} className="h-3 w-3 rounded-sm" />
-                                <div style={{ background: t.fg, opacity: 0.7 }} className="h-3 w-3 rounded-sm" />
-                              </div>
-                              <span className="flex-1 text-left">{t.label}</span>
-                              <span className="text-[10px] opacity-50 truncate max-w-[6rem]">{t.desc}</span>
-                              {isActive && <span className="ml-1 text-primary shrink-0">✓</span>}
-                            </button>
-                          )
-                        })}
-                      </div>
-                    ))}
-                  </div>
-                </>
-              )}
-            </div>
-          </div>
         </div>
 
         <div className="border-t border-white/10 px-5 py-3 flex items-center justify-between text-[10px] text-fg-4">
@@ -668,6 +672,9 @@ export default function Home({ initialConvId }: { initialConvId?: string } = {})
   const [confirmDelete, setConfirmDelete] = useState<{ label: string; doDelete: () => void } | null>(null)
   const [search, setSearch] = useState('')
   const [providers, setProviders] = useState<AvailableProvider[]>([])
+  const [webSearchAvailable, setWebSearchAvailable] = useState(false)
+  const [webSearch, setWebSearch] = useState(false)
+  const [toolRunning, setToolRunning] = useState<{ name: string; query?: string } | null>(null)
   const [provider, setProviderState] = useState<string>('anthropic')
   const [model, setModelState] = useState<string>('claude-sonnet-4-6')
   const [modelOpen, setModelOpen] = useState(false)
@@ -743,8 +750,12 @@ export default function Home({ initialConvId }: { initialConvId?: string } = {})
         return
       }
       try {
-        const list = await getProviders()
+        const { providers: list, features } = await getProviders()
         setProviders(list)
+        setWebSearchAvailable(!!features.webSearch)
+        // Only honor the stored toggle if the operator actually has search
+        // available — otherwise it'd be on but silently broken.
+        if (features.webSearch) setWebSearch(getWebSearchEnabled())
         // Resolve initial provider: stored choice (if still valid + available)
         // → first available → first in list. Then resolve model the same way.
         const stored = getSelectedProvider()
@@ -760,6 +771,11 @@ export default function Home({ initialConvId }: { initialConvId?: string } = {})
         console.error('providers fetch failed:', e)
       }
     })()
+  }, [])
+
+  const handleWebSearch = useCallback((on: boolean) => {
+    setWebSearch(on)
+    setWebSearchEnabled(on)
   }, [])
 
   // ── auto-scroll on new content ──
@@ -988,7 +1004,18 @@ export default function Home({ initialConvId }: { initialConvId?: string } = {})
           ))
         },
         abort.signal,
-        { provider, model },
+        { provider, model, webSearch },
+        {
+          onToolRunning: info => setToolRunning(info),
+          onSources: sources => {
+            setToolRunning(null)
+            setMessages(prev => prev.map(m =>
+              m.id === assistantId
+                ? { ...m, sources: [...(m.sources ?? []), ...sources] }
+                : m
+            ))
+          },
+        },
       )
       const finalAssistant: ChatMessage = {
         id: assistantId, role: 'assistant', content: res.message, sources: res.sources,
@@ -1022,9 +1049,10 @@ export default function Home({ initialConvId }: { initialConvId?: string } = {})
       }
     } finally {
       setStreaming(false)
+      setToolRunning(null)
       abortRef.current = null
     }
-  }, [activeId, conversations, provider, model, buildWireMessages, updateUrl])
+  }, [activeId, conversations, provider, model, webSearch, buildWireMessages, updateUrl])
 
   const send = useCallback(async () => {
     const text = input.trim()
@@ -1176,6 +1204,15 @@ export default function Home({ initialConvId }: { initialConvId?: string } = {})
           </div>
         )}
 
+        {/* tool-running banner — shown while the model is calling a tool mid-stream */}
+        {toolRunning && (
+          <div className="mx-4 mb-2 rounded-xl border border-white/10 bg-surface px-3 py-2 flex items-center gap-2 text-xs text-fg-2 animate-fade-in">
+            <span className="text-primary"><GlobeIcon /></span>
+            <span>Searching{toolRunning.query ? `: ${toolRunning.query}` : '…'}</span>
+            <span className="text-fg-4 animate-pulse">·</span>
+          </div>
+        )}
+
         {/* composer */}
         <div className="px-4 pb-4 pt-2 shrink-0">
           {/* hidden file inputs */}
@@ -1268,6 +1305,22 @@ export default function Home({ initialConvId }: { initialConvId?: string } = {})
                     </>
                   )}
                 </div>
+                {/* Web search toggle — only when the server has TAVILY_API_KEY */}
+                {webSearchAvailable && (
+                  <button
+                    onClick={() => handleWebSearch(!webSearch)}
+                    title={webSearch ? 'Web search: ON — click to turn off' : 'Web search: off — click to turn on'}
+                    aria-label="Toggle web search"
+                    aria-pressed={webSearch}
+                    className={`flex h-8 w-8 items-center justify-center rounded-lg transition-colors ${
+                      webSearch
+                        ? 'text-primary bg-primary/15 hover:bg-primary/25'
+                        : 'text-fg-3 hover:bg-surface-2 hover:text-fg'
+                    }`}
+                  >
+                    <GlobeIcon />
+                  </button>
+                )}
               {/* Model pill — opens upward from the composer */}
               <div>
                 {providers.length > 0 && (() => {
