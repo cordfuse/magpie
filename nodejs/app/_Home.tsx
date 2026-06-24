@@ -775,7 +775,7 @@ function MessageItem({ msg, streaming, isLastAssistant, onEditAndResend, onRegen
   return (
     <div className="group flex flex-col items-start gap-0.5">
       <div className="flex items-end gap-1.5 max-w-full">
-        <div className="max-w-[85%] rounded-2xl rounded-bl-sm bg-surface px-4 py-3 text-sm text-fg">
+        <div className="min-w-0 rounded-2xl rounded-bl-sm bg-surface px-4 py-3 text-sm text-fg">
           {isEmptyStreaming ? (
             <span className="inline-flex gap-1 items-end h-4">
               <span className="typing-dot h-1.5 w-1.5 rounded-full bg-fg-3" />
