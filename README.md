@@ -1,103 +1,174 @@
 # Quill
 
-**Agent-agnostic AI chatbot framework.** Next.js app with a self-hosted relay, 9-provider abstraction via [`token.js`](https://www.npmjs.com/package/token.js), JWT device-auth, and a polished chat UI inherited from [mighty-ai-qr-web](https://github.com/cordfuse/mighty-ai-qr-web).
+Embeddable AI chatbot framework. Drop-in branding, kiosk-friendly, MCP-ready.
 
-Not a hosted product. Clone, configure, run.
+A single Next.js app you self-host. Mount a config volume, point it at any of 12 LLM providers, and serve a polished chat UI from a Docker container in under a minute. Built to embed in third-party sites (support widget, demo kiosk, internal tool) without code changes.
 
-## Repo layout
+## Features
 
-```
-quill/
-├── nodejs/        # the app — Next.js, run bare metal via npm run dev / build / start
-└── docker/        # Dockerfile + compose + Caddyfile for the containerized deploy variant
-```
-
-Each subfolder is self-contained. Pick the path you want:
-
-- **Bare-metal Node.js** — `cd nodejs/` and follow the Quick start below
-- **Docker** — `cd docker/` and `docker compose up` (compose file references `../nodejs/` for the build context)
-
-## Stack
-
-- **Next.js 15** + React 19 + Tailwind (single-page app, PWA-capable)
-- **token.js** — one TypeScript SDK across 9 providers (Anthropic, OpenAI, Google Gemini, Groq, Mistral, Cohere, Perplexity, AWS Bedrock, AI21). Switching providers = one env var change.
-- **JWT device-auth** — anonymous guest sessions; no signup, no email, no third-party auth provider
-- No database (yet); conversations persist in browser `localStorage`
-
-## Quick start (bare-metal)
-
-```bash
-cd nodejs/
-npm install
-cp .env.example .env.local
-# edit .env.local — at minimum set ANTHROPIC_API_KEY + JWT_SECRET
-npm run dev
-# → http://localhost:3000
-```
+- **Multi-provider via [`token.js`](https://www.npmjs.com/package/token.js)** — 9 cloud (Anthropic, OpenAI, Gemini, Groq, Mistral, Cohere, Perplexity, AWS Bedrock, AI21) + 3 local OpenAI-compatible (Ollama, llama.cpp, LM Studio). Switch with one env var.
+- **MCP support** — add any number of MCP servers (HTTP or stdio) via `config/quill-mcp.json`. Tools are namespaced and auto-discovered.
+- **Web search** — Tavily integration with a composer toggle. Hide the toggle to make search always-on.
+- **Resumable streams** — server keeps a 5-minute replay buffer; clients reconnect via `Last-Event-ID` after dropped sockets (mobile-tab background, proxy hiccup, network blip). No lost tokens.
+- **Kiosk mode** — six env flags to lock down the UI surface: settings panel, chat history, web search, MCP picker, model picker, attachments. Hidden controls still run server-side using whatever's configured.
+- **Drop-in branding** — edit `config/quill.config.json` (app name, welcome message, starter prompts, theme colors, favicon, PWA icons). Next page request picks up the change. No rebuild.
+- **25 built-in themes + custom themes** — 13 dark + 12 light shipped; add your own under `themes[]` in the config.
+- **Document + image attachments** — PDF, DOCX, XLSX, plain text, images. Extracted server-side.
+- **PWA-ready** — manifest, installable, runs offline at the shell level.
+- **No database** — conversations persist in browser `localStorage` (unless kiosk mode disables persistence).
 
 ## Quick start (Docker)
 
 ```bash
 cd docker/
-# create .env in this folder with at minimum: JWT_SECRET, ANTHROPIC_API_KEY
+cp .env.example .env
+# Edit .env — at minimum set JWT_SECRET and one provider API key
 docker compose up --build
-# → http://localhost:3008  (host port; container internal is 3000)
+# → http://localhost:3008
 ```
 
-Production compose (`docker-compose.prod.yml`) adds a Caddy reverse-proxy in front of the app — edit `docker/Caddyfile` to set your domain before bringing it up.
+The container reads its branding, themes, MCP server list, and icons from a host-mounted volume (default: `../nodejs/config`). Edit any file in that dir and the next page load reflects the change.
 
-## Configuration (env vars)
+For a Caddy-fronted TLS deployment: `docker compose -f docker-compose.prod.yml up -d --build` (edit `Caddyfile` first to set your domain).
+
+For a deployment behind an existing host-level reverse proxy: `docker compose -f docker-compose.internal-caddy.yml up -d --build` (compose joins the external `proxy_net` network; the app exposes no host port).
+
+## Quick start (bare-metal Node)
+
+```bash
+cd nodejs/
+npm install
+cp .env.example .env.local
+# Edit .env.local — at minimum set JWT_SECRET and one provider API key
+npm run dev
+# → http://localhost:3000
+```
+
+## Configuration
+
+All operator config lives in two places:
+
+- **Secrets + flags** → env vars (Docker `.env` or bare-metal `.env.local`)
+- **Branding + themes + MCP servers + icons** → `nodejs/config/` (the persistent volume mount in Docker setups)
+
+### Provider API keys
+
+Set the env var for the provider you want, plus `QUILL_PROVIDER` to select it.
+
+| Provider | Env var(s) | Category |
+|---|---|---|
+| Anthropic | `ANTHROPIC_API_KEY` | cloud |
+| OpenAI | `OPENAI_API_KEY` | cloud |
+| Google Gemini | `GEMINI_API_KEY` | cloud |
+| Groq | `GROQ_API_KEY` | cloud |
+| Mistral | `MISTRAL_API_KEY` | cloud |
+| Cohere | `COHERE_API_KEY` | cloud |
+| Perplexity | `PERPLEXITY_API_KEY` | cloud |
+| AI21 | `AI21_API_KEY` | cloud |
+| AWS Bedrock | `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_REGION` | cloud |
+| Ollama | `OLLAMA_BASE_URL` (default `http://localhost:11434/v1`) | local |
+| llama.cpp | `LLAMACPP_BASE_URL` (default `http://localhost:8080/v1`) | local |
+| LM Studio | `LMSTUDIO_BASE_URL` (default `http://localhost:1234/v1`) | local |
+| Tavily web search | `TAVILY_API_KEY` (optional; enables the globe toggle) | — |
+
+In Docker, point local-provider base URLs at `host.docker.internal:<port>` (the compose files set `extra_hosts: ["host.docker.internal:host-gateway"]`).
+
+### Operator env vars
 
 | Var | Purpose | Default |
 |---|---|---|
-| `QUILL_PROVIDER` | `anthropic` / `openai` / `gemini` / `groq` / `mistral` / `cohere` / `perplexity` / `bedrock` / `ai21` | `anthropic` |
-| `QUILL_MODEL` | Provider-specific model ID | `claude-sonnet-4-6` |
-| `QUILL_SYSTEM_PROMPT` | Baseline system prompt the model sees | `"You are a helpful AI assistant."` |
-| `JWT_SECRET` | Secret for signing device tokens (any random ≥32-char string) | `dev-secret-change-in-prod` (NOT for production) |
-| `ANTHROPIC_API_KEY` / `OPENAI_API_KEY` / etc. | Provider API key; only the selected provider's key needs to be set | — |
+| `JWT_SECRET` | Signs the per-device auth token. Anything ≥32 random chars. | (dev fallback — must be set in production) |
+| `QUILL_PROVIDER` | Selected provider id (see table above) | `anthropic` |
+| `QUILL_MODEL` | Provider-specific model id | `claude-sonnet-4-6` |
+| `QUILL_SYSTEM_PROMPT` | Server-default system prompt | `"You are a helpful AI assistant."` |
+| `QUILL_TEMPERATURE` | Sampling temperature | `1.0` |
+| `QUILL_CONFIG_DIR` | Where `quill.config.json` + `quill-mcp.json` + `icons/` live | `./config` |
+| `QUILL_SHOW_SETTINGS` | Show the settings gear (`1`/`0`) | `1` |
+| `QUILL_PERSIST_CHAT` | Persist chat history to localStorage + show sidebar | `1` |
+| `QUILL_SHOW_WEB_SEARCH` | Show the web search globe toggle | `1` |
+| `QUILL_SHOW_MCP` | Show the MCP server picker | `1` |
+| `QUILL_SHOW_MODEL_PICKER` | Show the provider/model pill | `1` |
+| `QUILL_SHOW_ATTACHMENTS` | Show the paperclip | `1` |
 
-Generate a `JWT_SECRET`: `openssl rand -base64 32`
+Generate a `JWT_SECRET` with `openssl rand -hex 32`.
 
-## Switching providers
+### Branding (`config/quill.config.json`)
 
-Set `QUILL_PROVIDER` + `QUILL_MODEL` + the provider's API key env. No code change.
-
-```bash
-# Anthropic (default)
-QUILL_PROVIDER=anthropic QUILL_MODEL=claude-sonnet-4-6 ANTHROPIC_API_KEY=sk-ant-... npm run dev
-
-# OpenAI
-QUILL_PROVIDER=openai QUILL_MODEL=gpt-4o OPENAI_API_KEY=sk-... npm run dev
-
-# Google Gemini
-QUILL_PROVIDER=gemini QUILL_MODEL=gemini-2.0-flash-001 GEMINI_API_KEY=... npm run dev
+```json
+{
+  "name": "My Bot",
+  "shortName": "MyBot",
+  "tagline": "What it does in one line",
+  "welcomeMessage": "First assistant bubble when chat is empty. Markdown OK.",
+  "starterPrompts": ["Try this", "Or this"],
+  "checkForUpdatesUrl": "https://github.com/you/your-fork/releases",
+  "icon192": "/branding/icon-192.png",
+  "icon512": "/branding/icon-512.png",
+  "defaultTheme": "dracula",
+  "hideBuiltInThemes": false,
+  "themes": [
+    { "id": "my-brand", "name": "My Brand", "category": "light",
+      "swatches": ["#ffffff", "#ff5500", "#1a1a1a"],
+      "colors": { "bg": "#ffffff", "surface": "#f0f0f0", "primary": "#ff5500", "...": "..." } }
+  ]
+}
 ```
 
-token.js's built-in Anthropic model list tops out at Claude 3.7; Quill registers the Claude 4.x family (Opus 4.7, Sonnet 4.6, Haiku 4.5) explicitly. To use other models token.js doesn't know about yet, see `extendModelList` calls in `lib/server/ai-tools.ts`.
+Drop your PNGs into `config/icons/` and reference them as `/branding/<filename>` — they're served by a runtime route, no rebuild needed.
 
-## What's NOT included
+### MCP servers (`config/quill-mcp.json`)
 
-Intentional out-of-scope (re-add when you need them):
+```json
+{
+  "servers": {
+    "mslearn": { "type": "http", "url": "https://learn.microsoft.com/api/mcp", "label": "Microsoft Learn" },
+    "filesystem": { "type": "stdio", "command": "npx", "args": ["-y", "@modelcontextprotocol/server-filesystem", "/data"] }
+  }
+}
+```
 
-- **Server-side conversation persistence** — currently `localStorage` only; no shared history, no cross-device sync. Add a database (e.g. `better-sqlite3` for single-host) when you need it.
-- **Native web search** — Anthropic's `web_search_20250305` was provider-specific and dropped in the multi-provider swap. Re-add as a cross-provider tool call.
-- **Streaming responses** — currently single-shot (full response at end). token.js supports streaming; add when needed.
-- **File / image uploads** — `next-pwa` is in deps but no upload UI is wired.
-- **Anthropic prompt cache** (`cache_control: ephemeral`) — provider-specific; modest cost regression on repeat turns until token.js exposes a cache primitive or we DIY one.
+MCP servers are loaded at app boot. Restart the container after editing.
 
-## Theme
+### Kiosk mode
 
-15 popular developer themes, picked via the in-app settings dialog. Default = Dracula.
+The six `QUILL_SHOW_*` flags + `QUILL_PERSIST_CHAT` let you sculpt the UI surface per deployment. Hidden = the UI control is gone; the backing feature still runs server-side using whatever's configured. To disable a feature entirely, don't configure it (e.g. omit `TAVILY_API_KEY` to disable web search even when the toggle is hidden).
 
-**Dark:** Dracula · One Dark · Tokyo Night · Nord · Solarized Dark · Gruvbox Dark · Monokai · Catppuccin Mocha · Night Owl · Synthwave '84 · GitHub Dark · Palenight
+Typical embedded-widget config:
 
-**Light:** Solarized Light · GitHub Light · Catppuccin Latte
+```bash
+QUILL_SHOW_SETTINGS=0
+QUILL_PERSIST_CHAT=0
+QUILL_SHOW_WEB_SEARCH=0
+QUILL_SHOW_MCP=0
+QUILL_SHOW_MODEL_PICKER=0
+QUILL_SHOW_ATTACHMENTS=0
+```
 
-CSS variables live in `app/globals.css` under `[data-theme="<id>"]` blocks. Add a theme by extending the `Theme` union in `lib/storage.ts`, adding the CSS block, and adding a `{ id, label }` entry to `THEMES` in `app/page.tsx`.
+Web search and MCP keep running on every message (if their keys/configs are set) — the toggles are just hidden.
 
-## Origin
+## Repo layout
 
-Forked from `cordfuse/mighty-ai-qr-web` on 2026-06-23 because its chatbot UX was already polished beyond what any minimal-fork OSS starter (vercel/chatbot, lobe-chat, etc.) ships. Stripped to a generic foundation in three PRs (#1: QR/product surface, #2: dead SQLite layer + experimental flag, #3: `@anthropic-ai/sdk` direct → `token.js` multi-provider abstraction).
+```
+quill/
+├── nodejs/                 # the Next.js app
+│   ├── app/                # routes + components
+│   ├── lib/                # client + server helpers
+│   ├── config/             # runtime config (mounted as a volume in Docker)
+│   │   ├── quill.config.json     # branding + themes + welcome + starter prompts
+│   │   ├── quill-mcp.json        # MCP server list
+│   │   └── icons/                # PNGs served via /branding/*
+│   └── package.json
+├── docker/                 # Dockerfile + three compose variants + Caddyfile
+└── .github/workflows/      # GHCR multi-arch publish on `v*` tag
+```
+
+## Architecture (one paragraph)
+
+Next.js 15 App Router with React 19 + Tailwind. Server components SSR-render the shell and inject config into `window.__QUILL` so first paint matches the branded config (no hydration mismatch when a fork rebrands). The chat API decouples the LLM run from the HTTP response — a background promise feeds events into an in-memory replay buffer, and the response stream is one of N possible consumers (the original `POST /api/chat` plus any `GET /api/chat/replay/[id]` reconnects with `Last-Event-ID`). MCP clients are long-lived per process; tool calls are namespaced by server id and dispatched at message time. JWT-signed device tokens scope each browser to its own conversations in `localStorage`.
+
+## Provenance
+
+Forked from `cordfuse/mighty-ai-qr-web` on 2026-06-23 because its chat UX was further along than any minimal-fork OSS starter. Stripped to a generic foundation, then iterated on the kiosk/embed angle. Git history was reset at v0.1.0 — the lineage stays as a credit, not as code archeology.
 
 ## License
 
