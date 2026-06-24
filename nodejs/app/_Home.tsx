@@ -851,6 +851,15 @@ export default function Home({ initialConvId }: { initialConvId?: string } = {})
   const [customTemperature, setCustomTemperatureState] = useState<number | null>(null)
   const [customMaxTokens, setCustomMaxTokensState] = useState<number | null>(null)
   const [sendKeyPref, setSendKeyPrefState] = useState<SendKey>('enter')
+  // Pull-to-refresh: gesture originates on the header and translates the
+  // entire main column down. Past PULL_THRESHOLD on release → window.reload().
+  // Resistance curve (0.5x) makes the pull feel rubbery instead of 1:1.
+  // Uses a ref + native listeners (React's synthetic touch events don't fire
+  // reliably for programmatic / CDP-dispatched touch events).
+  const [pullDistance, setPullDistance] = useState(0)
+  const [isPulling, setIsPulling] = useState(false)
+  const pullStartYRef = useRef<number | null>(null)
+  const headerRef = useRef<HTMLElement>(null)
   const [provider, setProviderState] = useState<string>('anthropic')
   const [model, setModelState] = useState<string>('claude-sonnet-4-6')
   const [modelOpen, setModelOpen] = useState(false)
@@ -975,6 +984,52 @@ export default function Home({ initialConvId }: { initialConvId?: string } = {})
   const handleSendKey = useCallback((k: SendKey) => {
     setSendKeyPrefState(k)
     setSendKey(k)
+  }, [])
+
+  // ── pull-to-refresh (gesture originates on the header) ──
+  const PULL_THRESHOLD = 80
+  const PULL_MAX = 140
+  // Live ref to current pull distance so the touchend native callback
+  // (registered once in useEffect) can read the latest value without
+  // having to re-bind every render.
+  const pullDistanceRef = useRef(0)
+  useEffect(() => { pullDistanceRef.current = pullDistance }, [pullDistance])
+
+  useEffect(() => {
+    const el = headerRef.current
+    if (!el) return
+    const onStart = (e: TouchEvent) => {
+      pullStartYRef.current = e.touches[0].clientY
+      setIsPulling(true)
+    }
+    const onMove = (e: TouchEvent) => {
+      if (pullStartYRef.current === null) return
+      const dy = e.touches[0].clientY - pullStartYRef.current
+      if (dy <= 0) {
+        if (pullDistanceRef.current !== 0) setPullDistance(0)
+        return
+      }
+      setPullDistance(Math.min(PULL_MAX, dy * 0.5))
+    }
+    const onEnd = () => {
+      pullStartYRef.current = null
+      setIsPulling(false)
+      if (pullDistanceRef.current >= PULL_THRESHOLD) {
+        window.location.reload()
+      } else {
+        setPullDistance(0)
+      }
+    }
+    el.addEventListener('touchstart', onStart, { passive: true })
+    el.addEventListener('touchmove', onMove, { passive: true })
+    el.addEventListener('touchend', onEnd, { passive: true })
+    el.addEventListener('touchcancel', onEnd, { passive: true })
+    return () => {
+      el.removeEventListener('touchstart', onStart)
+      el.removeEventListener('touchmove', onMove)
+      el.removeEventListener('touchend', onEnd)
+      el.removeEventListener('touchcancel', onEnd)
+    }
   }, [])
 
   // ── auto-scroll on new content ──
@@ -1343,8 +1398,38 @@ export default function Home({ initialConvId }: { initialConvId?: string } = {})
       />
 
       {/* main column */}
-      <div className="flex-1 flex flex-col min-w-0 bg-bg">
-        <header className="quill-header px-3 py-3 flex items-center gap-2 shrink-0 bg-surface z-10">
+      <div className="flex-1 flex flex-col min-w-0 bg-bg relative">
+        {pullDistance > 0 && (
+          <div
+            className="absolute left-0 right-0 top-0 flex items-center justify-center pointer-events-none z-20 text-fg-3 text-xs"
+            style={{
+              height: `${pullDistance}px`,
+              opacity: Math.min(1, pullDistance / PULL_THRESHOLD),
+            }}
+          >
+            <span className="flex items-center gap-2">
+              <span
+                style={{
+                  display: 'inline-block',
+                  transform: `rotate(${pullDistance >= PULL_THRESHOLD ? 180 : 0}deg)`,
+                  transition: 'transform 120ms ease-out',
+                }}
+              >↓</span>
+              <span>{pullDistance >= PULL_THRESHOLD ? 'Release to refresh' : 'Pull to refresh'}</span>
+            </span>
+          </div>
+        )}
+        <div
+          className="flex-1 flex flex-col min-w-0"
+          style={{
+            transform: `translateY(${pullDistance}px)`,
+            transition: isPulling ? 'none' : 'transform 200ms ease-out',
+          }}
+        >
+        <header
+          ref={headerRef}
+          className="quill-header px-3 py-3 flex items-center gap-2 shrink-0 bg-surface z-10"
+        >
           <button
             onClick={() => setSidebarOpen(true)}
             className="flex h-9 w-9 items-center justify-center rounded-lg text-fg-3 hover:bg-surface hover:text-fg transition-colors"
@@ -1628,6 +1713,7 @@ export default function Home({ initialConvId }: { initialConvId?: string } = {})
               )}
             </div>
           </div>
+        </div>
         </div>
       </div>
 
