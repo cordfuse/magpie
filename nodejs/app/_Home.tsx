@@ -407,8 +407,15 @@ function SettingsPanel({
           </div>
         </div>
 
-        <div className="border-t border-white/10 px-5 py-3 flex items-center justify-between text-[10px] text-fg-4">
-          <span>About</span>
+        <div className="px-5 py-3 flex items-center justify-between text-[10px] text-fg-4">
+          <a
+            href="https://github.com/cordfuse/quill/releases"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="hover:text-fg-2 transition-colors"
+          >
+            Check for updates
+          </a>
           <span>Quill v{APP_VERSION}</span>
         </div>
       </aside>
