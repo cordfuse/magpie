@@ -642,12 +642,35 @@ function MessageItem({ msg, streaming, isLastAssistant, onEditAndResend, onRegen
       {msg.sources && msg.sources.length > 0 && (
         <div className="ml-1 mt-1 max-w-[85%] rounded-xl bg-surface px-3 py-2 border-l border-primary/30">
           <div className="text-[10px] text-fg-3 mb-1 uppercase tracking-wider">Sources</div>
-          <ul className="space-y-1">
-            {msg.sources.map((s, i) => (
-              <li key={i} className="text-xs">
-                <a href={s.url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">{s.title}</a>
-              </li>
-            ))}
+          <ul className="space-y-1.5">
+            {msg.sources.map((s, i) => {
+              let host = ''
+              try { host = new URL(s.url).hostname } catch { /* malformed URL — skip favicon */ }
+              return (
+                <li key={i} className="flex items-center gap-2 text-xs">
+                  {host && (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={`https://www.google.com/s2/favicons?domain=${host}&sz=32`}
+                      alt=""
+                      width={16}
+                      height={16}
+                      className="shrink-0 rounded-sm"
+                      onError={e => { (e.currentTarget as HTMLImageElement).style.visibility = 'hidden' }}
+                    />
+                  )}
+                  <a
+                    href={s.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex-1 min-w-0 truncate text-primary hover:underline"
+                    title={s.url}
+                  >
+                    {s.title || host || s.url}
+                  </a>
+                </li>
+              )
+            })}
           </ul>
         </div>
       )}
