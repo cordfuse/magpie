@@ -39,7 +39,46 @@ export async function initAuth(): Promise<void> {
   if (!getToken()) await authenticate()
 }
 
-export async function sendChat(messages: Message[], signal?: AbortSignal): Promise<ChatResponse> {
+// ─── Providers ───────────────────────────────────────────────────────────────
+
+export interface ProviderModel {
+  id: string
+  label: string
+}
+
+export interface AvailableProvider {
+  id: string
+  label: string
+  available: boolean
+  defaultModel: string
+  models: ProviderModel[]
+}
+
+export async function getProviders(): Promise<AvailableProvider[]> {
+  let token = getToken()
+  if (!token) {
+    await authenticate()
+    token = getToken()!
+  }
+  const res = await fetch(`${BASE}/providers`, {
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  if (res.status === 401) {
+    localStorage.removeItem('auth_token')
+    await authenticate()
+    return getProviders()
+  }
+  if (!res.ok) throw new Error(`Providers fetch failed: ${res.status}`)
+  const data = await res.json()
+  return data.providers ?? []
+}
+
+export interface ChatOpts {
+  provider?: string
+  model?: string
+}
+
+export async function sendChat(messages: Message[], signal?: AbortSignal, opts: ChatOpts = {}): Promise<ChatResponse> {
   let token = getToken()
   if (!token) {
     await authenticate()
@@ -53,13 +92,13 @@ export async function sendChat(messages: Message[], signal?: AbortSignal): Promi
       'Content-Type': 'application/json',
       Authorization: `Bearer ${token}`,
     },
-    body: JSON.stringify({ messages }),
+    body: JSON.stringify({ messages, ...opts }),
   })
 
   if (res.status === 401) {
     localStorage.removeItem('auth_token')
     await authenticate()
-    return sendChat(messages, signal)
+    return sendChat(messages, signal, opts)
   }
 
   if (!res.ok) {
@@ -82,6 +121,7 @@ export async function sendChatStream(
   messages: Message[],
   onDelta: (text: string) => void,
   signal?: AbortSignal,
+  opts: ChatOpts = {},
 ): Promise<ChatResponse> {
   let token = getToken()
   if (!token) {
@@ -96,13 +136,13 @@ export async function sendChatStream(
       'Content-Type': 'application/json',
       Authorization: `Bearer ${token}`,
     },
-    body: JSON.stringify({ messages, stream: true }),
+    body: JSON.stringify({ messages, stream: true, ...opts }),
   })
 
   if (res.status === 401) {
     localStorage.removeItem('auth_token')
     await authenticate()
-    return sendChatStream(messages, onDelta, signal)
+    return sendChatStream(messages, onDelta, signal, opts)
   }
 
   if (!res.ok || !res.body) {

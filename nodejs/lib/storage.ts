@@ -115,3 +115,37 @@ export function getTheme(): Theme {
 export function saveTheme(theme: Theme) {
   localStorage.setItem(THEME_KEY, theme)
 }
+
+// ─── Provider + model preferences ────────────────────────────────────────────
+//
+// Provider selection is a single string; model selection is per-provider
+// (so switching back to Anthropic remembers you were on Sonnet, not Opus).
+// Both fall back gracefully — server-side validates the selection and falls
+// back to its registry default if anything's stale or unknown.
+
+const PROVIDER_KEY = 'quill_provider'
+const MODELS_KEY = 'quill_models'  // JSON map: { providerId: modelId }
+
+export function getSelectedProvider(): string | null {
+  if (typeof window === 'undefined') return null
+  return localStorage.getItem(PROVIDER_KEY)
+}
+
+export function setSelectedProvider(provider: string) {
+  localStorage.setItem(PROVIDER_KEY, provider)
+}
+
+function loadModelMap(): Record<string, string> {
+  if (typeof window === 'undefined') return {}
+  try { return JSON.parse(localStorage.getItem(MODELS_KEY) ?? '{}') } catch { return {} }
+}
+
+export function getSelectedModel(provider: string): string | null {
+  return loadModelMap()[provider] ?? null
+}
+
+export function setSelectedModel(provider: string, model: string) {
+  const map = loadModelMap()
+  map[provider] = model
+  localStorage.setItem(MODELS_KEY, JSON.stringify(map))
+}

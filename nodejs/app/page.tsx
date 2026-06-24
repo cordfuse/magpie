@@ -4,10 +4,11 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { v4 as uuidv4 } from 'uuid'
-import { sendChatStream, initAuth } from '@/lib/api'
+import { sendChatStream, initAuth, getProviders, type AvailableProvider } from '@/lib/api'
 import {
   loadConversations, upsertConversation, deleteConversation, renameConversation,
   clearAllConversations, autoTitle, relativeTime, getTheme, saveTheme, type Theme,
+  getSelectedProvider, setSelectedProvider, getSelectedModel, setSelectedModel,
 } from '@/lib/storage'
 import type { ChatMessage, Conversation } from '@/lib/types'
 
@@ -125,9 +126,17 @@ function DeleteConfirmModal({ label, onConfirm, onCancel }: { label: string; onC
 
 // ─── settings panel (right drawer) ───────────────────────────────────────────
 
-function SettingsPanel({ theme, onTheme, onClose }: { theme: Theme; onTheme: (t: Theme) => void; onClose: () => void }) {
+function SettingsPanel({ theme, onTheme, providers, selectedProvider, onProvider, onClose }: {
+  theme: Theme
+  onTheme: (t: Theme) => void
+  providers: AvailableProvider[]
+  selectedProvider: string
+  onProvider: (p: string) => void
+  onClose: () => void
+}) {
   const [closing, setClosing] = useState(false)
   const [themeOpen, setThemeOpen] = useState(false)
+  const [providerOpen, setProviderOpen] = useState(false)
 
   const handleClose = () => {
     setClosing(true)
@@ -135,6 +144,7 @@ function SettingsPanel({ theme, onTheme, onClose }: { theme: Theme; onTheme: (t:
   }
 
   const active = THEMES.find(t => t.id === theme) ?? THEMES[0]
+  const activeProvider = providers.find(p => p.id === selectedProvider) ?? providers[0]
 
   return (
     <>
@@ -148,6 +158,54 @@ function SettingsPanel({ theme, onTheme, onClose }: { theme: Theme; onTheme: (t:
         </div>
 
         <div className="flex-1 overflow-y-auto p-5 space-y-6">
+          {/* Provider */}
+          {providers.length > 0 && (
+            <div>
+              <p className="text-[10px] font-semibold text-fg-3 uppercase tracking-wider mb-2">Provider</p>
+              <div className="relative">
+                <button
+                  onClick={() => setProviderOpen(o => !o)}
+                  className="flex w-full items-center gap-2.5 rounded-lg border border-white/10 bg-surface-2 px-3 py-2.5 text-sm text-fg hover:bg-surface-3 transition-colors"
+                >
+                  <span className="flex-1 text-left">{activeProvider?.label ?? selectedProvider}</span>
+                  {activeProvider && !activeProvider.available && (
+                    <span className="text-[10px] text-fg-4">key missing</span>
+                  )}
+                  <ChevronIcon open={providerOpen} />
+                </button>
+                {providerOpen && (
+                  <>
+                    <div className="fixed inset-0 z-10" onClick={() => setProviderOpen(false)} />
+                    <div className="absolute left-0 right-0 top-full z-20 mt-1 rounded-lg border border-white/10 bg-surface-2 shadow-xl overflow-hidden max-h-[60vh] overflow-y-auto">
+                      {providers.map(p => {
+                        const isActive = selectedProvider === p.id
+                        return (
+                          <button
+                            key={p.id}
+                            onClick={() => { onProvider(p.id); setProviderOpen(false) }}
+                            disabled={!p.available}
+                            className={`flex w-full items-center gap-2.5 px-3 py-2 text-sm transition-colors ${
+                              isActive ? 'text-primary bg-primary/10' : p.available ? 'text-fg-2 hover:bg-surface-3 hover:text-fg' : 'text-fg-4 cursor-not-allowed'
+                            }`}
+                          >
+                            <span className="flex-1 text-left">{p.label}</span>
+                            {!p.available && <span className="text-[10px] opacity-60">no key</span>}
+                            {isActive && <span className="ml-1 text-primary shrink-0">✓</span>}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </>
+                )}
+              </div>
+              {activeProvider && !activeProvider.available && (
+                <p className="mt-1.5 text-[10px] text-fg-4">
+                  Set <code className="font-mono">{providers.find(p => p.id === selectedProvider)?.id.toUpperCase()}_API_KEY</code> in <code className="font-mono">.env.local</code> and restart the server.
+                </p>
+              )}
+            </div>
+          )}
+
           {/* Theme */}
           <div>
             <p className="text-[10px] font-semibold text-fg-3 uppercase tracking-wider mb-2">Theme</p>
@@ -406,6 +464,10 @@ export default function Home() {
   const [theme, setTheme] = useState<Theme>('dracula')
   const [confirmDelete, setConfirmDelete] = useState<{ title: string; doDelete: () => void } | null>(null)
   const [search, setSearch] = useState('')
+  const [providers, setProviders] = useState<AvailableProvider[]>([])
+  const [provider, setProviderState] = useState<string>('anthropic')
+  const [model, setModelState] = useState<string>('claude-sonnet-4-6')
+  const [modelOpen, setModelOpen] = useState(false)
 
   const abortRef = useRef<AbortController | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -416,7 +478,6 @@ export default function Home() {
   useEffect(() => {
     if (initialized.current) return
     initialized.current = true
-    initAuth().catch(e => setError(e instanceof Error ? e.message : 'Auth failed'))
     const t = getTheme()
     setTheme(t)
     document.documentElement.setAttribute('data-theme', t)
@@ -425,6 +486,33 @@ export default function Home() {
     if (typeof window !== 'undefined' && window.matchMedia('(min-width: 1024px)').matches) {
       setSidebarOpen(true)
     }
+    // Auth, then load providers. The provider list endpoint requires auth,
+    // so we sequence rather than parallel.
+    void (async () => {
+      try {
+        await initAuth()
+      } catch (e) {
+        setError(e instanceof Error ? e.message : 'Auth failed')
+        return
+      }
+      try {
+        const list = await getProviders()
+        setProviders(list)
+        // Resolve initial provider: stored choice (if still valid + available)
+        // → first available → first in list. Then resolve model the same way.
+        const stored = getSelectedProvider()
+        const storedIsValid = stored && list.some(p => p.id === stored && p.available)
+        const firstAvailable = list.find(p => p.available)
+        const chosen = storedIsValid ? stored! : (firstAvailable?.id ?? list[0]?.id ?? 'anthropic')
+        setProviderState(chosen)
+        const chosenInfo = list.find(p => p.id === chosen)
+        const storedModel = getSelectedModel(chosen)
+        const storedModelValid = storedModel && chosenInfo?.models.some(m => m.id === storedModel)
+        setModelState(storedModelValid ? storedModel! : (chosenInfo?.defaultModel ?? 'claude-sonnet-4-6'))
+      } catch (e) {
+        console.error('providers fetch failed:', e)
+      }
+    })()
   }, [])
 
   // ── auto-scroll on new content ──
@@ -446,6 +534,22 @@ export default function Home() {
     saveTheme(t)
     document.documentElement.setAttribute('data-theme', t)
   }, [])
+
+  const handleProvider = useCallback((p: string) => {
+    setProviderState(p)
+    setSelectedProvider(p)
+    // Restore the user's last-used model for the new provider, else its default.
+    const info = providers.find(x => x.id === p)
+    if (!info) return
+    const stored = getSelectedModel(p)
+    const storedValid = stored && info.models.some(m => m.id === stored)
+    setModelState(storedValid ? stored! : info.defaultModel)
+  }, [providers])
+
+  const handleModel = useCallback((m: string) => {
+    setModelState(m)
+    setSelectedModel(provider, m)
+  }, [provider])
 
   const newConversation = useCallback(() => {
     setActiveId(null)
@@ -515,6 +619,7 @@ export default function Home() {
           ))
         },
         abort.signal,
+        { provider, model },
       )
       const finalAssistant: ChatMessage = {
         id: assistantId, role: 'assistant', content: res.message, sources: res.sources,
@@ -547,7 +652,7 @@ export default function Home() {
       setStreaming(false)
       abortRef.current = null
     }
-  }, [input, streaming, messages, activeId, conversations])
+  }, [input, streaming, messages, activeId, conversations, provider, model])
 
   const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -585,7 +690,49 @@ export default function Home() {
           >
             <MenuIcon />
           </button>
-          <h1 className="flex-1 text-sm font-medium text-fg">Quill</h1>
+          <h1 className="text-sm font-medium text-fg">Quill</h1>
+          {/* Model pill */}
+          {providers.length > 0 && (() => {
+            const providerInfo = providers.find(p => p.id === provider)
+            if (!providerInfo) return null
+            const modelInfo = providerInfo.models.find(m => m.id === model)
+            return (
+              <div className="relative">
+                <button
+                  onClick={() => setModelOpen(o => !o)}
+                  className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-surface-2 px-2.5 py-1.5 text-xs text-fg-2 hover:bg-surface-3 hover:text-fg transition-colors"
+                  title={`${providerInfo.label} — change model`}
+                >
+                  <span className="truncate max-w-[10rem]">{modelInfo?.label ?? model}</span>
+                  <ChevronIcon open={modelOpen} />
+                </button>
+                {modelOpen && (
+                  <>
+                    <div className="fixed inset-0 z-30" onClick={() => setModelOpen(false)} />
+                    <div className="absolute left-0 top-full z-40 mt-1 min-w-[14rem] rounded-lg border border-white/10 bg-surface-2 shadow-xl overflow-hidden">
+                      <p className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-fg-4 bg-surface">{providerInfo.label}</p>
+                      {providerInfo.models.map(m => {
+                        const isActive = model === m.id
+                        return (
+                          <button
+                            key={m.id}
+                            onClick={() => { handleModel(m.id); setModelOpen(false) }}
+                            className={`flex w-full items-center gap-2 px-3 py-2 text-xs transition-colors ${
+                              isActive ? 'text-primary bg-primary/10' : 'text-fg-2 hover:bg-surface-3 hover:text-fg'
+                            }`}
+                          >
+                            <span className="flex-1 text-left">{m.label}</span>
+                            {isActive && <span className="text-primary shrink-0">✓</span>}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </>
+                )}
+              </div>
+            )
+          })()}
+          <div className="flex-1" />
           <button
             onClick={() => setSettingsOpen(true)}
             className="flex h-9 w-9 items-center justify-center rounded-lg text-fg-3 hover:bg-surface hover:text-fg transition-colors"
@@ -680,7 +827,16 @@ export default function Home() {
         </div>
       </div>
 
-      {settingsOpen && <SettingsPanel theme={theme} onTheme={handleTheme} onClose={() => setSettingsOpen(false)} />}
+      {settingsOpen && (
+        <SettingsPanel
+          theme={theme}
+          onTheme={handleTheme}
+          providers={providers}
+          selectedProvider={provider}
+          onProvider={handleProvider}
+          onClose={() => setSettingsOpen(false)}
+        />
+      )}
       {confirmDelete && (
         <DeleteConfirmModal
           label={`"${confirmDelete.title}"`}
