@@ -3,6 +3,17 @@
 [![version](https://img.shields.io/badge/version-0.1.0-2ea44f.svg)](https://github.com/cordfuse/quill/releases)
 [![license](https://img.shields.io/badge/license-MIT-2ea44f.svg)](LICENSE)
 
+<table>
+  <tr>
+    <td align="center"><sub>Welcome + starter prompts</sub><br><img src="docs/screenshots/01-welcome.jpg" width="260" alt="Welcome bubble with four clickable starter prompts"></td>
+    <td align="center"><sub>Streaming chat response</sub><br><img src="docs/screenshots/02-chat.jpg" width="260" alt="Chat showing a user question and the assistant's streamed response"></td>
+  </tr>
+  <tr>
+    <td align="center"><sub>Conversation history</sub><br><img src="docs/screenshots/03-history.jpg" width="260" alt="Left drawer listing past conversations"></td>
+    <td align="center"><sub>Settings panel</sub><br><img src="docs/screenshots/04-settings.jpg" width="260" alt="Settings panel with theme picker, provider, system prompt, temperature, data tools"></td>
+  </tr>
+</table>
+
 Embeddable AI chatbot framework. Drop-in branding, kiosk-friendly, MCP-ready.
 
 A single Next.js app you self-host. Mount a config volume, point it at any of 12 LLM providers, and serve a polished chat UI from a Docker container in under a minute. Built to embed in third-party sites (support widget, demo kiosk, internal tool) without code changes.
