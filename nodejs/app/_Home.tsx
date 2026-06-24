@@ -1102,7 +1102,7 @@ export default function Home({ initialConvId }: { initialConvId?: string } = {})
 
       {/* main column */}
       <div className="flex-1 flex flex-col min-w-0 bg-bg">
-        <header className="px-3 py-3 flex items-center gap-2 shrink-0 bg-surface shadow-[0_2px_8px_rgba(0,0,0,0.25)] z-10">
+        <header className="quill-header px-3 py-3 flex items-center gap-2 shrink-0 bg-surface z-10">
           <button
             onClick={() => setSidebarOpen(true)}
             className="flex h-9 w-9 items-center justify-center rounded-lg text-fg-3 hover:bg-surface hover:text-fg transition-colors"
