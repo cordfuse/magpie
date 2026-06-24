@@ -1,47 +1,8 @@
-import { v4 as uuidv4 } from 'uuid'
-import type { HistoryItem, QrResult, Conversation, ChatMessage } from './types'
-
-// ─── QR history ───────────────────────────────────────────────────────────────
-
-const HISTORY_KEY = 'qr_history'
-
-export function loadHistory(): HistoryItem[] {
-  if (typeof window === 'undefined') return []
-  try {
-    const items: HistoryItem[] = JSON.parse(localStorage.getItem(HISTORY_KEY) ?? '[]')
-    let dirty = false
-    for (const item of items) {
-      if (!item.deviceName && item.qr?.deviceName) {
-        item.deviceName = item.qr.deviceName
-        dirty = true
-      }
-    }
-    if (dirty) localStorage.setItem(HISTORY_KEY, JSON.stringify(items))
-    return items
-  } catch { return [] }
-}
-
-export function saveToHistory(qr: QrResult): HistoryItem {
-  const item: HistoryItem = { id: uuidv4(), presetName: qr.presetName, deviceName: qr.deviceName, imageBase64: qr.imageBase64, timestamp: Date.now(), qr }
-  localStorage.setItem(HISTORY_KEY, JSON.stringify([item, ...loadHistory()].slice(0, 20)))
-  return item
-}
-
-export function deleteHistoryItem(id: string) {
-  localStorage.setItem(HISTORY_KEY, JSON.stringify(loadHistory().filter(i => i.id !== id)))
-}
-
-export function renameHistoryItem(id: string, newName: string) {
-  const updated = loadHistory().map(i => {
-    if (i.id !== id) return i
-    return { ...i, presetName: newName, qr: { ...i.qr, presetName: newName } }
-  })
-  localStorage.setItem(HISTORY_KEY, JSON.stringify(updated))
-}
+import type { Conversation, ChatMessage } from './types'
 
 // ─── Conversations ────────────────────────────────────────────────────────────
 
-const CONV_KEY = 'maq_conversations'
+const CONV_KEY = 'quill_conversations'
 const MAX_CONVERSATIONS = 50
 
 export function loadConversations(): Conversation[] {
@@ -70,10 +31,6 @@ export function clearAllConversations() {
   localStorage.removeItem(CONV_KEY)
 }
 
-export function clearAllHistory() {
-  localStorage.removeItem(HISTORY_KEY)
-}
-
 export function autoTitle(messages: ChatMessage[]): string {
   const first = messages.find(m => m.role === 'user')?.content ?? 'New chat'
   return first.length > 42 ? first.slice(0, 42).trimEnd() + '…' : first
@@ -88,73 +45,15 @@ export function relativeTime(ts: number): string {
   return new Date(ts).toLocaleDateString()
 }
 
-// ─── Default NUX Device ───────────────────────────────────────────────────────
-
-export type NuxDevice = 'plugpro' | 'space' | 'litemk2' | '8btmk2' | '20btmk2' | '40btmk2' | '60btmk2' | 'mightyair_v1' | 'mightyair_v2' | 'plugair_v1' | 'plugair_v2' | 'lite' | '8bt' | '2040bt' | '40bt' | 'mightygo'
-
-export const NUX_DEVICES: { id: NuxDevice; label: string }[] = [
-  { id: 'plugpro',      label: 'Mighty Plug Pro' },
-  { id: 'space',        label: 'Mighty Space' },
-  { id: 'litemk2',     label: 'Mighty Lite MkII' },
-  { id: '8btmk2',      label: 'Mighty 8BT MkII' },
-  { id: '20btmk2',     label: 'Mighty 20BT MkII' },
-  { id: '40btmk2',     label: 'Mighty 40BT MkII' },
-  { id: '60btmk2',     label: 'Mighty 60BT MkII' },
-  { id: 'mightyair_v1', label: 'Mighty Air (v1)' },
-  { id: 'mightyair_v2', label: 'Mighty Air (v2)' },
-  { id: 'plugair_v1',  label: 'Mighty Plug (v1)' },
-  { id: 'plugair_v2',  label: 'Mighty Plug (v2)' },
-  { id: 'lite',        label: 'Mighty Lite BT' },
-  { id: '8bt',         label: 'Mighty 8BT' },
-  { id: '2040bt',      label: 'Mighty 20BT/40BT (original)' },
-  { id: '40bt',        label: 'Mighty 40BT (original)' },
-  { id: 'mightygo',    label: 'Mighty Go' },
-]
-
-const DEVICE_KEY = 'maq_default_device'
-
-export function getDefaultDevice(): NuxDevice {
-  if (typeof window === 'undefined') return 'plugpro'
-  const stored = localStorage.getItem(DEVICE_KEY)
-  const valid = NUX_DEVICES.find(d => d.id === stored)
-  return valid ? (stored as NuxDevice) : 'plugpro'
-}
-
-export function saveDefaultDevice(device: NuxDevice) {
-  localStorage.setItem(DEVICE_KEY, device)
-}
-
-// ─── Welcome splash (shown once per version) ──────────────────────────────────
-
-const WELCOME_KEY = 'maq_welcome_seen'
-
-export function getWelcomeSeen(version: string): boolean {
-  if (typeof window === 'undefined') return true
-  return localStorage.getItem(WELCOME_KEY) === version
-}
-
-export function saveWelcomeSeen(version: string) {
-  localStorage.setItem(WELCOME_KEY, version)
-}
-
-// ─── Hint dismissed ───────────────────────────────────────────────────────────
-
-const HINT_KEY = 'maq_hint_dismissed'
-
-export function getHintDismissed(): boolean {
-  if (typeof window === 'undefined') return false
-  return localStorage.getItem(HINT_KEY) === 'true'
-}
-
-export function saveHintDismissed(v: boolean) {
-  localStorage.setItem(HINT_KEY, v ? 'true' : 'false')
-}
-
 // ─── Theme ────────────────────────────────────────────────────────────────────
+//
+// 11 themes inherited from mighty-ai-qr-web. Names retain their guitar-amp
+// flavor (tweed/amber/british/oxblood/silver/pedalboard/blackface/plexi);
+// rename later if you want to neutralize the branding.
 
 export type Theme = 'dark' | 'oled' | 'light' | 'tweed' | 'amber' | 'british' | 'oxblood' | 'silver' | 'pedalboard' | 'blackface' | 'plexi' | 'tweed-lt' | 'amber-lt' | 'british-lt' | 'oxblood-lt' | 'silver-lt' | 'pedalboard-lt' | 'blackface-lt' | 'plexi-lt'
 
-const THEME_KEY = 'maq_theme'
+const THEME_KEY = 'quill_theme'
 
 export function getTheme(): Theme {
   if (typeof window === 'undefined') return 'dark'

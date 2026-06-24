@@ -1,6 +1,6 @@
 {
-  "name": "mighty-ai-qr-web",
-  "version": "1.8.2",
+  "name": "quill",
+  "version": "0.1.0",
   "private": true,
   "scripts": {
     "dev": "NODE_OPTIONS='--experimental-sqlite' next dev --turbopack",
@@ -11,27 +11,21 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.78.0",
     "jsonwebtoken": "^9.0.3",
-    "jsqr": "^1.4.0",
-    "jszip": "^3.10.1",
     "next": "^15.1.0",
     "next-pwa": "^5.6.0",
-    "qrcode": "^1.5.4",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-markdown": "^9.0.1",
     "remark-gfm": "^4.0.0",
-    "sharp": "^0.34.5",
     "uuid": "^11.0.0"
   },
   "devDependencies": {
     "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^22",
-    "@types/qrcode": "^1.5.6",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@types/uuid": "^10",
     "autoprefixer": "^10",
-    "bwip-js": "^4.8.0",
     "eslint": "^9",
     "eslint-config-next": "^15.1.0",
     "postcss": "^8",

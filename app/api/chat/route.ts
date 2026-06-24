@@ -1,16 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
 import { getDeviceIdFromRequest } from '@/lib/server/jwt'
-import { runChat, SYSTEM_PROMPT_FULL } from '@/lib/server/ai-tools'
-import { DEVICES } from '@/lib/server/nux'
-import { checkAndIncrementQuota } from '@/lib/server/quota'
+import { runChat } from '@/lib/server/ai-tools'
 
 export const maxDuration = 300
+
+const DEFAULT_SYSTEM_PROMPT =
+  process.env.QUILL_SYSTEM_PROMPT ?? 'You are a helpful AI assistant.'
 
 export async function POST(request: NextRequest) {
   console.log('[chat] request received')
   const deviceId = getDeviceIdFromRequest(request.headers.get('Authorization'))
-  if (!deviceId) { console.log('[chat] unauthorized'); return NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) }
+  if (!deviceId) {
+    console.log('[chat] unauthorized')
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
 
   const body = await request.json()
   const { messages } = body
@@ -19,39 +23,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Invalid messages' }, { status: 400 })
   }
 
-  const defaultDevice = (request.headers.get('x-default-device') ?? 'plugpro').trim()
-
-  const deviceDisplayName = DEVICES[defaultDevice as keyof typeof DEVICES]?.displayName ?? defaultDevice
-  const deviceInstruction = `The user's NUX device is "${defaultDevice}" (${deviceDisplayName}). You MUST call the generateQR tool with device="${defaultDevice}". Do NOT use any other device ID — ignore any device mentioned in the conversation history.\n\n`
-  // Device instruction is dynamic (changes per device) — not cached.
-  // SYSTEM_PROMPT_FULL is large and static — cache it with ephemeral to cut input token costs ~90% on repeat turns.
+  // System prompt — minimal baseline. Override via QUILL_SYSTEM_PROMPT env var.
+  // Marked ephemeral so Anthropic caches the prefix on repeat turns (cheap when stable).
   const systemFull = [
-    { type: 'text' as const, text: deviceInstruction },
-    { type: 'text' as const, text: SYSTEM_PROMPT_FULL, cache_control: { type: 'ephemeral' as const } },
+    { type: 'text' as const, text: DEFAULT_SYSTEM_PROMPT, cache_control: { type: 'ephemeral' as const } },
   ]
-
-  // Rewrite assistant messages: replace any stale device display name with the current one.
-  // Sorted longest-first to avoid partial matches (e.g. "Mighty Plug Pro" before "Mighty Plug").
-  const allDeviceNames = (Object.values(DEVICES) as { displayName: string }[]).map(d => d.displayName)
-  allDeviceNames.sort((a, b) => b.length - a.length)
-  const staleDeviceNames = allDeviceNames.filter(n => n !== deviceDisplayName)
-  const rewriteDevice = (content: string) =>
-    staleDeviceNames.reduce((s, name) => s.replaceAll(name, deviceDisplayName), content)
-
-  const messagesWithHint: { role: 'user' | 'assistant'; content: string }[] = messages.map((m: { role: 'user' | 'assistant'; content: string }) =>
-    m.role === 'assistant' ? { ...m, content: rewriteDevice(m.content) } : m
-  )
-
-  // Also inject a hard device constraint into the last user message
-  const lastUserIdx = messagesWithHint.map(m => m.role).lastIndexOf('user')
-  if (lastUserIdx !== -1) {
-    const existingPresetName = [...messagesWithHint].reverse().find((m: {role: string; content: string}) => m.role === 'assistant' && m.content.includes('"'))?.content.match(/"([^"]+)"/)?.[1]
-    const nameHint = existingPresetName ? ` Keep the preset_name as "${existingPresetName}".` : ''
-    messagesWithHint[lastUserIdx] = {
-      ...messagesWithHint[lastUserIdx],
-      content: messagesWithHint[lastUserIdx].content + `\n\n[IMPORTANT: Use device="${defaultDevice}" in the generateQR tool call.${nameHint}]`,
-    }
-  }
 
   console.log(`[chat] msgs=${messages.length}`)
 
@@ -60,16 +36,10 @@ export async function POST(request: NextRequest) {
     if (!serverKey) {
       return NextResponse.json({ error: 'Service unavailable.' }, { status: 503 })
     }
-    const quota = checkAndIncrementQuota()
-    if (!quota.allowed) {
-      return NextResponse.json({
-        error: "Today's free request limit has been reached. Come back tomorrow!",
-      }, { status: 429 })
-    }
-    const freeModel = process.env.FREE_MODEL || 'claude-sonnet-4-6'
-    console.log(`[chat] model=${freeModel}`)
+    const model = process.env.QUILL_MODEL || 'claude-sonnet-4-6'
+    console.log(`[chat] model=${model}`)
     const client = new Anthropic({ apiKey: serverKey })
-    const result = await runChat(client, messagesWithHint, freeModel, systemFull)
+    const result = await runChat(client, messages, model, systemFull)
 
     console.log(`[chat] done`)
     return NextResponse.json(result)
