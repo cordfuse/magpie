@@ -67,7 +67,7 @@ export interface QuillConfig {
 const defaults: QuillConfig = {
   name: 'Quill',
   shortName: 'Quill',
-  tagline: 'Agent-agnostic AI chatbot framework',
+  tagline: 'Embeddable AI chatbot framework',
   defaultSystemPrompt: 'You are a helpful AI assistant.',
   welcomeMessage: '',
   starterPrompts: [],

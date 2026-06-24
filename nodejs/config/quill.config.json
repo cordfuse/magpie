@@ -3,17 +3,17 @@
 
   "name": "Quill",
   "shortName": "Quill",
-  "tagline": "Agent-agnostic AI chatbot framework",
+  "tagline": "Embeddable AI chatbot framework",
   "defaultSystemPrompt": "You are a helpful AI assistant.",
   "$welcomeMessageNote": "If set, rendered as the first assistant bubble whenever the chat is empty (kiosk or not). Markdown supported. Leave empty to show the default 'Start a conversation.' placeholder.",
-  "welcomeMessage": "Hi, I'm the Cordfuse assistant. Ask me about Quill, Crosstalk, llmux, or anything Microsoft Learn covers — I'll pull live docs as needed.",
+  "welcomeMessage": "Hi — I'm a Cordfuse demo of Quill. I can pull live Microsoft docs via MCP, search the web, and help with anything else you'd ask a smart assistant. Try one of the prompts below, or ask me anything.",
 
   "$starterPromptsNote": "Clickable pill chips below the welcome bubble. Each prompt is sent verbatim as the user's first message on click. Empty array hides the chip row. Especially useful for kiosk deployments — turns the empty surface into a guided menu.",
   "starterPrompts": [
-    "What is Quill?",
-    "How do I deploy Quill in kiosk mode?",
-    "What MCP servers does this instance have wired up?",
-    "Show me the latest Microsoft Graph permissions reference."
+    "What's new in .NET 10?",
+    "Latest news on AI agents",
+    "Explain Kubernetes pods in 3 sentences",
+    "Help me draft a friendly OOO email"
   ],
   "checkForUpdatesUrl": "https://github.com/cordfuse/quill/releases",
 
