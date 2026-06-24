@@ -256,6 +256,150 @@
   --scrollbar-h:rgba(30,102,245,0.42);
 }
 
+/* One Light — Atom */
+[data-theme="one-light"] {
+  --bg:         #fafafa;
+  --surface:    #f0f0f0;
+  --surface-2:  #e5e5e6;
+  --surface-3:  #d3d3d3;
+  --primary:    #4078f2;
+  --on-primary: #ffffff;
+  --fg:         #383a42;
+  --fg-2:       #50545e;
+  --fg-3:       #696c77;
+  --fg-4:       #a0a1a7;
+  --scrollbar:  rgba(64,120,242,0.22);
+  --scrollbar-h:rgba(64,120,242,0.42);
+}
+
+/* Tokyo Night Light */
+[data-theme="tokyo-night-light"] {
+  --bg:         #d5d6db;
+  --surface:    #cbccd1;
+  --surface-2:  #c4c8da;
+  --surface-3:  #b2b5c1;
+  --primary:    #34548a;
+  --on-primary: #ffffff;
+  --fg:         #343b58;
+  --fg-2:       #4a5089;
+  --fg-3:       #6172b0;
+  --fg-4:       #8c8ca0;
+  --scrollbar:  rgba(52,84,138,0.22);
+  --scrollbar-h:rgba(52,84,138,0.42);
+}
+
+/* Ayu Light */
+[data-theme="ayu-light"] {
+  --bg:         #fafafa;
+  --surface:    #f3f4f5;
+  --surface-2:  #e7eaed;
+  --surface-3:  #d8dadc;
+  --primary:    #ff8f40;
+  --on-primary: #ffffff;
+  --fg:         #5c6166;
+  --fg-2:       #6d6f6e;
+  --fg-3:       #828c99;
+  --fg-4:       #abb0b6;
+  --scrollbar:  rgba(255,143,64,0.22);
+  --scrollbar-h:rgba(255,143,64,0.42);
+}
+
+/* Gruvbox Light */
+[data-theme="gruvbox-light"] {
+  --bg:         #fbf1c7;
+  --surface:    #ebdbb2;
+  --surface-2:  #d5c4a1;
+  --surface-3:  #bdae93;
+  --primary:    #b57614;
+  --on-primary: #ffffff;
+  --fg:         #3c3836;
+  --fg-2:       #504945;
+  --fg-3:       #665c54;
+  --fg-4:       #7c6f64;
+  --scrollbar:  rgba(181,118,20,0.22);
+  --scrollbar-h:rgba(181,118,20,0.42);
+}
+
+/* Quiet Light — VS Code */
+[data-theme="quiet-light"] {
+  --bg:         #f5f5f5;
+  --surface:    #ececec;
+  --surface-2:  #dde0e3;
+  --surface-3:  #c2c5c8;
+  --primary:    #4271ae;
+  --on-primary: #ffffff;
+  --fg:         #333333;
+  --fg-2:       #4d4d4c;
+  --fg-3:       #6f6f6f;
+  --fg-4:       #999999;
+  --scrollbar:  rgba(66,113,174,0.22);
+  --scrollbar-h:rgba(66,113,174,0.42);
+}
+
+/* Light+ — VS Code default light */
+[data-theme="light-plus"] {
+  --bg:         #ffffff;
+  --surface:    #f3f3f3;
+  --surface-2:  #ececec;
+  --surface-3:  #d4d4d4;
+  --primary:    #007acc;
+  --on-primary: #ffffff;
+  --fg:         #000000;
+  --fg-2:       #333333;
+  --fg-3:       #6b6b6b;
+  --fg-4:       #919191;
+  --scrollbar:  rgba(0,122,204,0.22);
+  --scrollbar-h:rgba(0,122,204,0.42);
+}
+
+/* Material Lighter */
+[data-theme="material-lighter"] {
+  --bg:         #fafafa;
+  --surface:    #ffffff;
+  --surface-2:  #eeffff;
+  --surface-3:  #d6d8d9;
+  --primary:    #6182b8;
+  --on-primary: #ffffff;
+  --fg:         #546e7a;
+  --fg-2:       #6c8290;
+  --fg-3:       #90a4ae;
+  --fg-4:       #b0bec5;
+  --scrollbar:  rgba(97,130,184,0.22);
+  --scrollbar-h:rgba(97,130,184,0.42);
+}
+
+/* Nord Light — Polar Night inverted with Snow + Frost */
+[data-theme="nord-light"] {
+  --bg:         #eceff4;
+  --surface:    #e5e9f0;
+  --surface-2:  #d8dee9;
+  --surface-3:  #c8d0db;
+  --primary:    #5e81ac;
+  --on-primary: #ffffff;
+  --fg:         #2e3440;
+  --fg-2:       #3b4252;
+  --fg-3:       #4c566a;
+  --fg-4:       #6b7383;
+  --scrollbar:  rgba(94,129,172,0.22);
+  --scrollbar-h:rgba(94,129,172,0.42);
+}
+
+/* Min Light — minimal */
+[data-theme="min-light"] {
+  --bg:         #fbfbfb;
+  --surface:    #f0f0f0;
+  --surface-2:  #e5e5e5;
+  --surface-3:  #d0d0d0;
+  --primary:    #2196f3;
+  --on-primary: #ffffff;
+  --fg:         #222222;
+  --fg-2:       #333333;
+  --fg-3:       #555555;
+  --fg-4:       #888888;
+  --scrollbar:  rgba(33,150,243,0.22);
+  --scrollbar-h:rgba(33,150,243,0.42);
+}
+
 /* ─── Base ───────────────────────────────────────────────────────────────── */
 
 html, body {
@@ -280,21 +424,57 @@ html, body {
    each light theme id here when adding new ones. */
 [data-theme="solarized-light"],
 [data-theme="github-light"],
-[data-theme="catppuccin-latte"] {
+[data-theme="catppuccin-latte"],
+[data-theme="one-light"],
+[data-theme="tokyo-night-light"],
+[data-theme="ayu-light"],
+[data-theme="gruvbox-light"],
+[data-theme="quiet-light"],
+[data-theme="light-plus"],
+[data-theme="material-lighter"],
+[data-theme="nord-light"],
+[data-theme="min-light"] {
   --error-bg:     rgba(254,226,226,0.9);
   --error-border: rgba(185,28,28,0.3);
   --error-fg:     #b91c1c;
 }
 
-[data-theme="solarized-light"] .border-white\/10,
-[data-theme="github-light"]    .border-white\/10,
-[data-theme="catppuccin-latte"] .border-white\/10 { border-color: rgba(0,0,0,0.10) !important; }
-[data-theme="solarized-light"] .border-white\/20,
-[data-theme="github-light"]    .border-white\/20,
-[data-theme="catppuccin-latte"] .border-white\/20 { border-color: rgba(0,0,0,0.16) !important; }
-[data-theme="solarized-light"] .divide-white\/10 > * + *,
-[data-theme="github-light"]    .divide-white\/10 > * + *,
-[data-theme="catppuccin-latte"] .divide-white\/10 > * + * { border-color: rgba(0,0,0,0.10) !important; }
+[data-theme="solarized-light"]   .border-white\/10,
+[data-theme="github-light"]      .border-white\/10,
+[data-theme="catppuccin-latte"]  .border-white\/10,
+[data-theme="one-light"]         .border-white\/10,
+[data-theme="tokyo-night-light"] .border-white\/10,
+[data-theme="ayu-light"]         .border-white\/10,
+[data-theme="gruvbox-light"]     .border-white\/10,
+[data-theme="quiet-light"]       .border-white\/10,
+[data-theme="light-plus"]        .border-white\/10,
+[data-theme="material-lighter"]  .border-white\/10,
+[data-theme="nord-light"]        .border-white\/10,
+[data-theme="min-light"]         .border-white\/10 { border-color: rgba(0,0,0,0.10) !important; }
+[data-theme="solarized-light"]   .border-white\/20,
+[data-theme="github-light"]      .border-white\/20,
+[data-theme="catppuccin-latte"]  .border-white\/20,
+[data-theme="one-light"]         .border-white\/20,
+[data-theme="tokyo-night-light"] .border-white\/20,
+[data-theme="ayu-light"]         .border-white\/20,
+[data-theme="gruvbox-light"]     .border-white\/20,
+[data-theme="quiet-light"]       .border-white\/20,
+[data-theme="light-plus"]        .border-white\/20,
+[data-theme="material-lighter"]  .border-white\/20,
+[data-theme="nord-light"]        .border-white\/20,
+[data-theme="min-light"]         .border-white\/20 { border-color: rgba(0,0,0,0.16) !important; }
+[data-theme="solarized-light"]   .divide-white\/10 > * + *,
+[data-theme="github-light"]      .divide-white\/10 > * + *,
+[data-theme="catppuccin-latte"]  .divide-white\/10 > * + *,
+[data-theme="one-light"]         .divide-white\/10 > * + *,
+[data-theme="tokyo-night-light"] .divide-white\/10 > * + *,
+[data-theme="ayu-light"]         .divide-white\/10 > * + *,
+[data-theme="gruvbox-light"]     .divide-white\/10 > * + *,
+[data-theme="quiet-light"]       .divide-white\/10 > * + *,
+[data-theme="light-plus"]        .divide-white\/10 > * + *,
+[data-theme="material-lighter"]  .divide-white\/10 > * + *,
+[data-theme="nord-light"]        .divide-white\/10 > * + *,
+[data-theme="min-light"]         .divide-white\/10 > * + * { border-color: rgba(0,0,0,0.10) !important; }
 
 /* ─── Prose (AI markdown) ────────────────────────────────────────────────── */
 

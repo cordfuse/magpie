@@ -29,26 +29,37 @@ interface ThemeMeta {
 }
 
 const THEMES: ThemeMeta[] = [
-  { id: 'dracula',          label: 'Dracula',         desc: 'Purple night',     bg: '#282a36', primary: '#bd93f9', fg: '#f8f8f2' },
-  { id: 'one-dark',         label: 'One Dark',        desc: 'Atom classic',     bg: '#282c34', primary: '#61afef', fg: '#abb2bf' },
-  { id: 'tokyo-night',      label: 'Tokyo Night',     desc: 'Neon city',        bg: '#1a1b26', primary: '#7aa2f7', fg: '#c0caf5' },
-  { id: 'nord',             label: 'Nord',            desc: 'Arctic',           bg: '#2e3440', primary: '#88c0d0', fg: '#eceff4' },
-  { id: 'solarized-dark',   label: 'Solarized Dark',  desc: 'Ethan Schoonover', bg: '#002b36', primary: '#268bd2', fg: '#93a1a1' },
-  { id: 'gruvbox-dark',     label: 'Gruvbox Dark',    desc: 'Retro warmth',     bg: '#282828', primary: '#fabd2f', fg: '#ebdbb2' },
-  { id: 'monokai',          label: 'Monokai',         desc: 'TextMate roots',   bg: '#272822', primary: '#a6e22e', fg: '#f8f8f2' },
-  { id: 'catppuccin-mocha', label: 'Catppuccin Mocha',desc: 'Pastel night',     bg: '#1e1e2e', primary: '#cba6f7', fg: '#cdd6f4' },
-  { id: 'night-owl',        label: 'Night Owl',       desc: 'Sarah Drasner',    bg: '#011627', primary: '#82aaff', fg: '#d6deeb' },
-  { id: 'synthwave',        label: "Synthwave '84",   desc: 'Retro neon',       bg: '#262335', primary: '#ff7edb', fg: '#f4eee4' },
-  { id: 'github-dark',      label: 'GitHub Dark',     desc: 'Official',         bg: '#0d1117', primary: '#58a6ff', fg: '#c9d1d9' },
-  { id: 'palenight',        label: 'Palenight',       desc: 'Material',         bg: '#292d3e', primary: '#82aaff', fg: '#a6accd' },
-  { id: 'solarized-light',  label: 'Solarized Light', desc: 'Ethan Schoonover', bg: '#fdf6e3', primary: '#268bd2', fg: '#586e75' },
-  { id: 'github-light',     label: 'GitHub Light',    desc: 'Official',         bg: '#ffffff', primary: '#0969da', fg: '#1f2328' },
-  { id: 'catppuccin-latte', label: 'Catppuccin Latte',desc: 'Pastel day',       bg: '#eff1f5', primary: '#8839ef', fg: '#4c4f69' },
+  // dark (12)
+  { id: 'dracula',           label: 'Dracula',          desc: 'Purple night',     bg: '#282a36', primary: '#bd93f9', fg: '#f8f8f2' },
+  { id: 'one-dark',          label: 'One Dark',         desc: 'Atom classic',     bg: '#282c34', primary: '#61afef', fg: '#abb2bf' },
+  { id: 'tokyo-night',       label: 'Tokyo Night',      desc: 'Neon city',        bg: '#1a1b26', primary: '#7aa2f7', fg: '#c0caf5' },
+  { id: 'nord',              label: 'Nord',             desc: 'Arctic',           bg: '#2e3440', primary: '#88c0d0', fg: '#eceff4' },
+  { id: 'solarized-dark',    label: 'Solarized Dark',   desc: 'Ethan Schoonover', bg: '#002b36', primary: '#268bd2', fg: '#93a1a1' },
+  { id: 'gruvbox-dark',      label: 'Gruvbox Dark',     desc: 'Retro warmth',     bg: '#282828', primary: '#fabd2f', fg: '#ebdbb2' },
+  { id: 'monokai',           label: 'Monokai',          desc: 'TextMate roots',   bg: '#272822', primary: '#a6e22e', fg: '#f8f8f2' },
+  { id: 'catppuccin-mocha',  label: 'Catppuccin Mocha', desc: 'Pastel night',     bg: '#1e1e2e', primary: '#cba6f7', fg: '#cdd6f4' },
+  { id: 'night-owl',         label: 'Night Owl',        desc: 'Sarah Drasner',    bg: '#011627', primary: '#82aaff', fg: '#d6deeb' },
+  { id: 'synthwave',         label: "Synthwave '84",    desc: 'Retro neon',       bg: '#262335', primary: '#ff7edb', fg: '#f4eee4' },
+  { id: 'github-dark',       label: 'GitHub Dark',      desc: 'Official',         bg: '#0d1117', primary: '#58a6ff', fg: '#c9d1d9' },
+  { id: 'palenight',         label: 'Palenight',        desc: 'Material',         bg: '#292d3e', primary: '#82aaff', fg: '#a6accd' },
+  // light (12)
+  { id: 'solarized-light',   label: 'Solarized Light',  desc: 'Ethan Schoonover', bg: '#fdf6e3', primary: '#268bd2', fg: '#586e75' },
+  { id: 'github-light',      label: 'GitHub Light',     desc: 'Official',         bg: '#ffffff', primary: '#0969da', fg: '#1f2328' },
+  { id: 'catppuccin-latte',  label: 'Catppuccin Latte', desc: 'Pastel day',       bg: '#eff1f5', primary: '#8839ef', fg: '#4c4f69' },
+  { id: 'one-light',         label: 'One Light',        desc: 'Atom light',       bg: '#fafafa', primary: '#4078f2', fg: '#383a42' },
+  { id: 'tokyo-night-light', label: 'Tokyo Night Light',desc: 'Day variant',      bg: '#d5d6db', primary: '#34548a', fg: '#343b58' },
+  { id: 'ayu-light',         label: 'Ayu Light',        desc: 'Minimal warmth',   bg: '#fafafa', primary: '#ff8f40', fg: '#5c6166' },
+  { id: 'gruvbox-light',     label: 'Gruvbox Light',    desc: 'Retro day',        bg: '#fbf1c7', primary: '#b57614', fg: '#3c3836' },
+  { id: 'quiet-light',       label: 'Quiet Light',      desc: 'VS Code',          bg: '#f5f5f5', primary: '#4271ae', fg: '#333333' },
+  { id: 'light-plus',        label: 'Light+',           desc: 'VS Code default',  bg: '#ffffff', primary: '#007acc', fg: '#000000' },
+  { id: 'material-lighter',  label: 'Material Lighter', desc: 'Material light',   bg: '#fafafa', primary: '#6182b8', fg: '#546e7a' },
+  { id: 'nord-light',        label: 'Nord Light',       desc: 'Snow + Frost',     bg: '#eceff4', primary: '#5e81ac', fg: '#2e3440' },
+  { id: 'min-light',         label: 'Min Light',        desc: 'Minimal',          bg: '#fbfbfb', primary: '#2196f3', fg: '#222222' },
 ]
 
 const THEME_GROUPS: { label: string; ids: Theme[] }[] = [
   { label: 'Dark',  ids: ['dracula','one-dark','tokyo-night','nord','solarized-dark','gruvbox-dark','monokai','catppuccin-mocha','night-owl','synthwave','github-dark','palenight'] },
-  { label: 'Light', ids: ['solarized-light','github-light','catppuccin-latte'] },
+  { label: 'Light', ids: ['solarized-light','github-light','catppuccin-latte','one-light','tokyo-night-light','ayu-light','gruvbox-light','quiet-light','light-plus','material-lighter','nord-light','min-light'] },
 ]
 
 const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION ?? '0.1.0'

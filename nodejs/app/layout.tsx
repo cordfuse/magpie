@@ -20,7 +20,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <head>
         <script
           dangerouslySetInnerHTML={{
-            __html: `(function(){try{var T={dracula:1,'one-dark':1,'tokyo-night':1,nord:1,'solarized-dark':1,'gruvbox-dark':1,monokai:1,'catppuccin-mocha':1,'night-owl':1,synthwave:1,'github-dark':1,palenight:1,'solarized-light':1,'github-light':1,'catppuccin-latte':1};var t=localStorage.getItem('quill_theme');document.documentElement.setAttribute('data-theme',T[t]?t:'dracula')}catch(e){}})()`,
+            __html: `(function(){try{var T={dracula:1,'one-dark':1,'tokyo-night':1,nord:1,'solarized-dark':1,'gruvbox-dark':1,monokai:1,'catppuccin-mocha':1,'night-owl':1,synthwave:1,'github-dark':1,palenight:1,'solarized-light':1,'github-light':1,'catppuccin-latte':1,'one-light':1,'tokyo-night-light':1,'ayu-light':1,'gruvbox-light':1,'quiet-light':1,'light-plus':1,'material-lighter':1,'nord-light':1,'min-light':1};var t=localStorage.getItem('quill_theme');document.documentElement.setAttribute('data-theme',T[t]?t:'dracula')}catch(e){}})()`,
           }}
         />
       </head>

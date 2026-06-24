@@ -56,12 +56,13 @@ export function relativeTime(ts: number): string {
 
 // ─── Theme ────────────────────────────────────────────────────────────────────
 //
-// 15 popular developer themes (12 dark + 3 light). To add a theme: extend
-// this union, add a `[data-theme="<id>"]` block in app/globals.css, and
-// add a `{ id, label }` entry to THEMES in app/page.tsx.
+// 24 popular developer themes (12 dark + 12 light). To add a theme: extend
+// this union, add the id to VALID_THEMES below, add a `[data-theme="<id>"]`
+// block in app/globals.css, and add the theme metadata to THEMES in
+// app/page.tsx (plus the matching bootstrap script in app/layout.tsx).
 
 export type Theme =
-  // dark
+  // dark (12)
   | 'dracula'
   | 'one-dark'
   | 'tokyo-night'
@@ -74,19 +75,32 @@ export type Theme =
   | 'synthwave'
   | 'github-dark'
   | 'palenight'
-  // light
+  // light (12)
   | 'solarized-light'
   | 'github-light'
   | 'catppuccin-latte'
+  | 'one-light'
+  | 'tokyo-night-light'
+  | 'ayu-light'
+  | 'gruvbox-light'
+  | 'quiet-light'
+  | 'light-plus'
+  | 'material-lighter'
+  | 'nord-light'
+  | 'min-light'
 
 const THEME_KEY = 'quill_theme'
 const DEFAULT_THEME: Theme = 'dracula'
 
 const VALID_THEMES = new Set<Theme>([
+  // dark
   'dracula', 'one-dark', 'tokyo-night', 'nord', 'solarized-dark',
   'gruvbox-dark', 'monokai', 'catppuccin-mocha', 'night-owl',
   'synthwave', 'github-dark', 'palenight',
+  // light
   'solarized-light', 'github-light', 'catppuccin-latte',
+  'one-light', 'tokyo-night-light', 'ayu-light', 'gruvbox-light',
+  'quiet-light', 'light-plus', 'material-lighter', 'nord-light', 'min-light',
 ])
 
 export function getTheme(): Theme {
