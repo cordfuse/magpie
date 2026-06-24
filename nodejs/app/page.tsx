@@ -733,6 +733,31 @@ export default function Home() {
             )
           })()}
           <div className="flex-1" />
+          {activeId && (
+            <button
+              onClick={() => {
+                const conv = conversations.find(c => c.id === activeId)
+                if (!conv) return
+                setConfirmDelete({
+                  title: conv.title,
+                  doDelete: () => { removeConversation(activeId); newConversation() },
+                })
+              }}
+              className="flex h-9 w-9 items-center justify-center rounded-lg text-fg-3 hover:bg-surface hover:text-red-400 transition-colors"
+              title="Delete chat"
+              aria-label="Delete current chat"
+            >
+              <TrashIcon />
+            </button>
+          )}
+          <button
+            onClick={newConversation}
+            className="flex h-9 w-9 items-center justify-center rounded-lg text-fg-3 hover:bg-surface hover:text-fg transition-colors"
+            title="New chat"
+            aria-label="New chat"
+          >
+            <NewChatIcon />
+          </button>
           <button
             onClick={() => setSettingsOpen(true)}
             className="flex h-9 w-9 items-center justify-center rounded-lg text-fg-3 hover:bg-surface hover:text-fg transition-colors"
