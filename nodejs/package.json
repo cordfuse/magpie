@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "jsonwebtoken": "^9.0.3",
+    "mammoth": "^1.12.0",
     "next": "^15.1.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
@@ -17,7 +18,8 @@
     "remark-gfm": "^4.0.0",
     "token.js": "^0.7.1",
     "unpdf": "^1.6.2",
-    "uuid": "^11.0.0"
+    "uuid": "^11.0.0",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@types/jsonwebtoken": "^9.0.10",

@@ -1181,7 +1181,7 @@ export default function Home({ initialConvId }: { initialConvId?: string } = {})
           {/* hidden file inputs */}
           <input ref={cameraInputRef}   type="file" accept="image/*" capture="environment" className="hidden" onChange={onPickFile('image')} />
           <input ref={photosInputRef}   type="file" accept="image/*"                         className="hidden" onChange={onPickFile('image')} />
-          <input ref={documentInputRef} type="file" accept=".pdf,.txt,.md,.doc,.docx,.json,.csv,.xml,.html,.rtf" className="hidden" onChange={onPickFile('document')} />
+          <input ref={documentInputRef} type="file" accept=".pdf,.docx,.xlsx,.xls,.txt,.md,.json,.csv,.xml,.html,.htm,.rtf,.yaml,.yml,.log" className="hidden" onChange={onPickFile('document')} />
 
           <div className="max-w-3xl mx-auto rounded-3xl border border-white/10 bg-surface transition-colors focus-within:border-primary/40">
             {/* pending attachment chips (above the textarea) */}
