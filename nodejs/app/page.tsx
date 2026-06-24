@@ -6,127 +6,402 @@ import remarkGfm from 'remark-gfm'
 import { v4 as uuidv4 } from 'uuid'
 import { sendChatStream, initAuth } from '@/lib/api'
 import {
-  loadConversations, upsertConversation, deleteConversation, clearAllConversations,
-  autoTitle, relativeTime, getTheme, saveTheme, type Theme,
+  loadConversations, upsertConversation, deleteConversation, renameConversation,
+  clearAllConversations, autoTitle, relativeTime, getTheme, saveTheme, type Theme,
 } from '@/lib/storage'
 import type { ChatMessage, Conversation } from '@/lib/types'
 
 // ─── theme palette ───────────────────────────────────────────────────────────
 //
-// 15 popular dev themes (12 dark + 3 light). CSS for each lives in
-// app/globals.css under `[data-theme="<id>"]`. To add a theme, extend
-// the Theme type in lib/storage.ts, add the CSS block, then add an
-// entry here.
+// 15 popular dev themes (12 dark + 3 light). Each entry carries the three
+// preview colors used by the SettingsPanel dropdown swatches: bg, primary, fg.
+// CSS for each lives in app/globals.css under `[data-theme="<id>"]`.
+// To add a theme: extend the Theme union in lib/storage.ts, add the CSS
+// block, add the VALID_THEMES set entry, and add an entry here.
 
-const THEMES: { id: Theme; label: string }[] = [
-  // dark
-  { id: 'dracula',          label: 'Dracula' },
-  { id: 'one-dark',         label: 'One Dark' },
-  { id: 'tokyo-night',      label: 'Tokyo Night' },
-  { id: 'nord',             label: 'Nord' },
-  { id: 'solarized-dark',   label: 'Solarized Dark' },
-  { id: 'gruvbox-dark',     label: 'Gruvbox Dark' },
-  { id: 'monokai',          label: 'Monokai' },
-  { id: 'catppuccin-mocha', label: 'Catppuccin Mocha' },
-  { id: 'night-owl',        label: 'Night Owl' },
-  { id: 'synthwave',        label: "Synthwave '84" },
-  { id: 'github-dark',      label: 'GitHub Dark' },
-  { id: 'palenight',        label: 'Palenight' },
-  // light
-  { id: 'solarized-light',  label: 'Solarized Light' },
-  { id: 'github-light',     label: 'GitHub Light' },
-  { id: 'catppuccin-latte', label: 'Catppuccin Latte' },
+interface ThemeMeta {
+  id: Theme
+  label: string
+  desc: string
+  bg: string
+  primary: string
+  fg: string
+}
+
+const THEMES: ThemeMeta[] = [
+  { id: 'dracula',          label: 'Dracula',         desc: 'Purple night',     bg: '#282a36', primary: '#bd93f9', fg: '#f8f8f2' },
+  { id: 'one-dark',         label: 'One Dark',        desc: 'Atom classic',     bg: '#282c34', primary: '#61afef', fg: '#abb2bf' },
+  { id: 'tokyo-night',      label: 'Tokyo Night',     desc: 'Neon city',        bg: '#1a1b26', primary: '#7aa2f7', fg: '#c0caf5' },
+  { id: 'nord',             label: 'Nord',            desc: 'Arctic',           bg: '#2e3440', primary: '#88c0d0', fg: '#eceff4' },
+  { id: 'solarized-dark',   label: 'Solarized Dark',  desc: 'Ethan Schoonover', bg: '#002b36', primary: '#268bd2', fg: '#93a1a1' },
+  { id: 'gruvbox-dark',     label: 'Gruvbox Dark',    desc: 'Retro warmth',     bg: '#282828', primary: '#fabd2f', fg: '#ebdbb2' },
+  { id: 'monokai',          label: 'Monokai',         desc: 'TextMate roots',   bg: '#272822', primary: '#a6e22e', fg: '#f8f8f2' },
+  { id: 'catppuccin-mocha', label: 'Catppuccin Mocha',desc: 'Pastel night',     bg: '#1e1e2e', primary: '#cba6f7', fg: '#cdd6f4' },
+  { id: 'night-owl',        label: 'Night Owl',       desc: 'Sarah Drasner',    bg: '#011627', primary: '#82aaff', fg: '#d6deeb' },
+  { id: 'synthwave',        label: "Synthwave '84",   desc: 'Retro neon',       bg: '#262335', primary: '#ff7edb', fg: '#f4eee4' },
+  { id: 'github-dark',      label: 'GitHub Dark',     desc: 'Official',         bg: '#0d1117', primary: '#58a6ff', fg: '#c9d1d9' },
+  { id: 'palenight',        label: 'Palenight',       desc: 'Material',         bg: '#292d3e', primary: '#82aaff', fg: '#a6accd' },
+  { id: 'solarized-light',  label: 'Solarized Light', desc: 'Ethan Schoonover', bg: '#fdf6e3', primary: '#268bd2', fg: '#586e75' },
+  { id: 'github-light',     label: 'GitHub Light',    desc: 'Official',         bg: '#ffffff', primary: '#0969da', fg: '#1f2328' },
+  { id: 'catppuccin-latte', label: 'Catppuccin Latte',desc: 'Pastel day',       bg: '#eff1f5', primary: '#8839ef', fg: '#4c4f69' },
 ]
+
+const THEME_GROUPS: { label: string; ids: Theme[] }[] = [
+  { label: 'Dark',  ids: ['dracula','one-dark','tokyo-night','nord','solarized-dark','gruvbox-dark','monokai','catppuccin-mocha','night-owl','synthwave','github-dark','palenight'] },
+  { label: 'Light', ids: ['solarized-light','github-light','catppuccin-latte'] },
+]
+
+const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION ?? '0.1.0'
 
 // ─── icons ───────────────────────────────────────────────────────────────────
 
+const QuillIcon = () => (
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="text-primary">
+    <path d="M20.5 3.5c-7 1-12 6-13.5 13.5L4 20l3-3.5c7.5-1.5 12.5-6.5 13.5-13z" />
+    <path d="M4 20l8-8" />
+  </svg>
+)
 const SendIcon = () => (
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M2 21l21-9L2 3v7l15 2-15 2v7z"/></svg>
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M2 21l21-9L2 3v7l15 2-15 2v7z"/></svg>
 )
 const StopIcon = () => (
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>
 )
 const NewChatIcon = () => (
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 5v14M5 12h14"/></svg>
 )
 const MenuIcon = () => (
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
 )
 const TrashIcon = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-2 14a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L5 6"/></svg>
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-2 14a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L5 6"/></svg>
+)
+const PencilIcon = () => (
+  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
 )
 const GearIcon = () => (
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
 )
 const CloseIcon = () => (
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+)
+const SearchIcon = () => (
+  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+)
+const ChevronIcon = ({ open }: { open: boolean }) => (
+  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={`transition-transform shrink-0 ${open ? 'rotate-180' : ''}`}><polyline points="6 9 12 15 18 9"/></svg>
 )
 
 // ─── delete-confirm modal ────────────────────────────────────────────────────
 
 function DeleteConfirmModal({ label, onConfirm, onCancel }: { label: string; onConfirm: () => void; onCancel: () => void }) {
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={onCancel}>
-      <div className="bg-[color:var(--surface)] text-[color:var(--fg)] rounded-lg p-6 max-w-sm w-full" onClick={e => e.stopPropagation()}>
-        <h3 className="text-lg font-semibold mb-3">Delete {label}?</h3>
-        <p className="text-sm opacity-70 mb-5">This cannot be undone.</p>
-        <div className="flex justify-end gap-2">
-          <button onClick={onCancel} className="px-4 py-2 rounded-md hover:bg-[color:var(--fg)]/10">Cancel</button>
-          <button onClick={onConfirm} className="px-4 py-2 rounded-md bg-red-600 text-white hover:bg-red-700">Delete</button>
+    <>
+      <div className="fixed inset-0 z-[70] bg-black/60 backdrop-blur-sm" onClick={onCancel} />
+      <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 pointer-events-none">
+        <div className="pointer-events-auto w-full max-w-sm rounded-2xl border border-white/10 bg-surface shadow-2xl animate-scale-up p-5 space-y-4" onClick={e => e.stopPropagation()}>
+          <h3 className="text-sm font-semibold text-fg">Delete {label}?</h3>
+          <p className="text-xs text-fg-3">This cannot be undone.</p>
+          <div className="flex justify-end gap-2">
+            <button onClick={onCancel} className="px-3 py-1.5 text-xs text-fg-2 hover:text-fg transition-colors">Cancel</button>
+            <button onClick={onConfirm} className="px-3 py-1.5 text-xs rounded-lg bg-red-500/20 text-red-400 hover:bg-red-500/30 transition-colors">Delete</button>
+          </div>
         </div>
       </div>
+    </>
+  )
+}
+
+// ─── settings panel (right drawer) ───────────────────────────────────────────
+
+function SettingsPanel({ theme, onTheme, onClose }: { theme: Theme; onTheme: (t: Theme) => void; onClose: () => void }) {
+  const [closing, setClosing] = useState(false)
+  const [themeOpen, setThemeOpen] = useState(false)
+
+  const handleClose = () => {
+    setClosing(true)
+    setTimeout(onClose, 240)
+  }
+
+  const active = THEMES.find(t => t.id === theme) ?? THEMES[0]
+
+  return (
+    <>
+      <div className="fixed inset-0 z-40 bg-black/50" onClick={handleClose} />
+      <aside className={`fixed right-0 top-0 z-50 flex h-full w-[min(20rem,100vw)] flex-col bg-surface shadow-2xl ${closing ? 'animate-slide-out-right' : 'animate-slide-in-right'}`}>
+        <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
+          <h2 className="text-sm font-medium text-fg">Settings</h2>
+          <button onClick={handleClose} className="text-fg-3 hover:text-fg transition-colors" aria-label="Close settings">
+            <CloseIcon />
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-5 space-y-6">
+          {/* Theme */}
+          <div>
+            <p className="text-[10px] font-semibold text-fg-3 uppercase tracking-wider mb-2">Theme</p>
+            <div className="relative">
+              <button
+                onClick={() => setThemeOpen(o => !o)}
+                className="flex w-full items-center gap-2.5 rounded-lg border border-white/10 bg-surface-2 px-3 py-2.5 text-sm text-fg hover:bg-surface-3 transition-colors"
+              >
+                <div className="flex gap-1 shrink-0">
+                  <div style={{ background: active.bg }} className="h-3 w-3 rounded-sm border border-white/10" />
+                  <div style={{ background: active.primary }} className="h-3 w-3 rounded-sm" />
+                  <div style={{ background: active.fg, opacity: 0.7 }} className="h-3 w-3 rounded-sm" />
+                </div>
+                <span className="flex-1 text-left">{active.label}</span>
+                <span className="text-[10px] text-fg-4 truncate max-w-[8rem]">{active.desc}</span>
+                <ChevronIcon open={themeOpen} />
+              </button>
+              {themeOpen && (
+                <>
+                  <div className="fixed inset-0 z-10" onClick={() => setThemeOpen(false)} />
+                  <div className="absolute left-0 right-0 top-full z-20 mt-1 rounded-lg border border-white/10 bg-surface-2 shadow-xl overflow-hidden max-h-[60vh] overflow-y-auto">
+                    {THEME_GROUPS.map(group => (
+                      <div key={group.label}>
+                        <p className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-fg-4 bg-surface">{group.label}</p>
+                        {group.ids.map(id => {
+                          const t = THEMES.find(x => x.id === id)
+                          if (!t) return null
+                          const isActive = theme === t.id
+                          return (
+                            <button
+                              key={t.id}
+                              onClick={() => { onTheme(t.id); setThemeOpen(false) }}
+                              className={`flex w-full items-center gap-2.5 px-3 py-2 text-sm transition-colors ${
+                                isActive ? 'text-primary bg-primary/10' : 'text-fg-2 hover:bg-surface-3 hover:text-fg'
+                              }`}
+                            >
+                              <div className="flex gap-1 shrink-0">
+                                <div style={{ background: t.bg }} className="h-3 w-3 rounded-sm border border-white/10" />
+                                <div style={{ background: t.primary }} className="h-3 w-3 rounded-sm" />
+                                <div style={{ background: t.fg, opacity: 0.7 }} className="h-3 w-3 rounded-sm" />
+                              </div>
+                              <span className="flex-1 text-left">{t.label}</span>
+                              <span className="text-[10px] opacity-50 truncate max-w-[6rem]">{t.desc}</span>
+                              {isActive && <span className="ml-1 text-primary shrink-0">✓</span>}
+                            </button>
+                          )
+                        })}
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+
+        <div className="border-t border-white/10 px-5 py-3 flex items-center justify-between text-[10px] text-fg-4">
+          <span>About</span>
+          <span>Quill v{APP_VERSION}</span>
+        </div>
+      </aside>
+    </>
+  )
+}
+
+// ─── conversation list item ─────────────────────────────────────────────────
+
+function ConvItem({ conv, active, onSelect, onDeleteRequest, onRename }: {
+  conv: Conversation
+  active: boolean
+  onSelect: () => void
+  onDeleteRequest: () => void
+  onRename: (name: string) => void
+}) {
+  const [editing, setEditing] = useState(false)
+  const [name, setName] = useState(conv.title)
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  const commit = () => {
+    const trimmed = name.trim()
+    if (trimmed && trimmed !== conv.title) onRename(trimmed)
+    setEditing(false)
+  }
+
+  if (editing) {
+    return (
+      <div className={`relative flex items-center px-3 py-2 ${active ? 'bg-surface-2' : ''}`}>
+        {active && <div className="absolute left-0 top-1 bottom-1 w-0.5 rounded-r bg-primary" />}
+        <input
+          ref={inputRef}
+          value={name}
+          onChange={e => setName(e.target.value)}
+          onBlur={commit}
+          onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); commit() } if (e.key === 'Escape') setEditing(false) }}
+          className="flex-1 min-w-0 bg-transparent text-xs text-fg outline-none border-b border-primary py-0.5"
+        />
+      </div>
+    )
+  }
+
+  return (
+    <div
+      className={`group relative flex items-center px-3 py-2.5 cursor-pointer transition-colors ${active ? 'bg-surface-2' : 'hover:bg-surface-2'}`}
+      onClick={onSelect}
+    >
+      {active && <div className="absolute left-0 top-1 bottom-1 w-0.5 rounded-r bg-primary" />}
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-xs text-fg">{conv.title}</p>
+        <p className="text-[10px] text-fg-4">{relativeTime(conv.updatedAt)}</p>
+      </div>
+      <button
+        onClick={e => { e.stopPropagation(); setName(conv.title); setEditing(true); requestAnimationFrame(() => inputRef.current?.focus()) }}
+        className="ml-1 flex h-7 w-7 shrink-0 items-center justify-center text-fg-4 hover:text-fg-2 transition-colors"
+        title="Rename"
+      >
+        <PencilIcon />
+      </button>
+      <button
+        onClick={e => { e.stopPropagation(); onDeleteRequest() }}
+        className="ml-1 flex h-7 w-7 shrink-0 items-center justify-center text-fg-4 hover:text-fg-2 transition-colors"
+        title="Delete"
+      >
+        <TrashIcon />
+      </button>
     </div>
   )
 }
 
-// ─── settings modal (theme picker only for now) ──────────────────────────────
+// ─── sidebar (left drawer) ───────────────────────────────────────────────────
 
-function SettingsModal({ theme, onTheme, onClose }: { theme: Theme; onTheme: (t: Theme) => void; onClose: () => void }) {
+function Sidebar({
+  visible, onClose, conversations, activeId, query, setQuery,
+  onSelectConv, onDeleteConv, onRenameConv, onNewChat, onOpenSettings, onClearAll,
+}: {
+  visible: boolean
+  onClose: () => void
+  conversations: Conversation[]
+  activeId: string | null
+  query: string
+  setQuery: (q: string) => void
+  onSelectConv: (id: string) => void
+  onDeleteConv: (id: string, title: string) => void
+  onRenameConv: (id: string, title: string) => void
+  onNewChat: () => void
+  onOpenSettings: () => void
+  onClearAll: () => void
+}) {
+  const q = query.trim().toLowerCase()
+  const filtered = q
+    ? conversations.filter(c => c.title.toLowerCase().includes(q) ||
+        c.messages.some(m => m.content.toLowerCase().includes(q)))
+    : conversations
+
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={onClose}>
-      <div className="bg-[color:var(--surface)] text-[color:var(--fg)] rounded-lg p-6 max-w-md w-full max-h-[80vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-        <div className="flex justify-between items-center mb-5">
-          <h3 className="text-lg font-semibold">Settings</h3>
-          <button onClick={onClose} className="opacity-70 hover:opacity-100"><CloseIcon /></button>
+    <>
+      {visible && <div className="fixed inset-0 z-40 bg-black/50 lg:hidden" onClick={onClose} />}
+      <aside className={`
+        fixed top-0 left-0 z-50 h-full bg-surface shadow-[4px_0_16px_rgba(0,0,0,0.35)]
+        flex flex-col overflow-hidden transition-transform duration-200 w-[260px]
+        lg:relative lg:shadow-none
+        ${visible ? 'translate-x-0' : '-translate-x-full lg:w-0'}
+      `}>
+        {/* brand + close (mobile) */}
+        <div className="flex items-center justify-between px-3 py-3 shrink-0 min-w-[260px] border-b border-white/10">
+          <div className="flex items-center gap-2.5">
+            <QuillIcon />
+            <span className="text-sm font-medium text-fg whitespace-nowrap">Quill</span>
+          </div>
+          <button onClick={onClose} className="flex h-7 w-7 items-center justify-center rounded-lg text-fg-3 hover:bg-surface-2 hover:text-fg transition-colors lg:hidden" aria-label="Close sidebar">
+            <CloseIcon />
+          </button>
         </div>
-        <h4 className="text-sm font-medium opacity-80 mb-3">Theme</h4>
-        <div className="grid grid-cols-2 gap-2">
-          {THEMES.map(t => (
+
+        {/* new chat */}
+        <div className="px-3 pt-3 pb-2 shrink-0 min-w-[260px]">
+          <button
+            onClick={() => { onNewChat(); onClose() }}
+            className="flex w-full items-center justify-center gap-2 rounded-lg border border-white/10 bg-surface-2 hover:bg-surface-3 px-3 py-2 text-xs text-fg transition-colors"
+          >
+            <NewChatIcon /> New chat
+          </button>
+        </div>
+
+        {/* search */}
+        <div className="px-3 pb-2 shrink-0 min-w-[260px]">
+          <div className="relative">
+            <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-fg-4 pointer-events-none"><SearchIcon /></span>
+            <input
+              value={query}
+              onChange={e => setQuery(e.target.value)}
+              placeholder="Search chats…"
+              className="w-full rounded-lg bg-surface-2 py-1.5 pl-7 pr-7 text-xs text-fg placeholder:text-fg-4 outline-none focus:ring-1 focus:ring-primary/40"
+            />
+            {query && (
+              <button onClick={() => setQuery('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-fg-4 hover:text-fg-2 transition-colors" aria-label="Clear search">
+                <CloseIcon />
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* conv list */}
+        <div className="flex-1 overflow-y-auto py-1 [scrollbar-gutter:stable]">
+          {filtered.length === 0
+            ? <p className="px-4 py-6 text-center text-[11px] text-fg-4">{q ? 'No matches' : 'No conversations yet'}</p>
+            : filtered.map(conv => (
+              <ConvItem
+                key={conv.id}
+                conv={conv}
+                active={conv.id === activeId}
+                onSelect={() => { onSelectConv(conv.id); onClose() }}
+                onDeleteRequest={() => onDeleteConv(conv.id, conv.title)}
+                onRename={name => onRenameConv(conv.id, name)}
+              />
+            ))
+          }
+        </div>
+
+        {/* footer: settings + clear all */}
+        <div className="shrink-0 min-w-[260px] border-t border-white/10 px-3 py-2 flex items-center justify-between">
+          <button
+            onClick={onOpenSettings}
+            className="flex items-center gap-2 px-2 py-1.5 text-xs text-fg-3 hover:text-fg transition-colors"
+            title="Settings"
+          >
+            <GearIcon /> Settings
+          </button>
+          {conversations.length > 0 && (
             <button
-              key={t.id}
-              onClick={() => onTheme(t.id)}
-              className={`px-3 py-2 rounded-md text-sm text-left transition ${
-                t.id === theme ? 'bg-[color:var(--primary)] text-[color:var(--bg)]' : 'bg-[color:var(--fg)]/5 hover:bg-[color:var(--fg)]/10'
-              }`}
+              onClick={onClearAll}
+              className="px-2 py-1.5 text-[11px] text-fg-4 hover:text-fg-2 transition-colors"
+              title="Clear all conversations"
             >
-              {t.label}
+              Clear all
             </button>
-          ))}
+          )}
         </div>
-      </div>
-    </div>
+      </aside>
+    </>
   )
 }
 
 // ─── main page ───────────────────────────────────────────────────────────────
 
 export default function Home() {
-  // ── state ──
   const [conversations, setConversations] = useState<Conversation[]>([])
   const [activeId, setActiveId] = useState<string | null>(null)
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [input, setInput] = useState('')
   const [streaming, setStreaming] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [sidebarOpen, setSidebarOpen] = useState(true)
+  // Sidebar visibility: default collapsed on mobile, open on lg+ (CSS handles
+  // the lg:relative override; we just track the boolean).
+  const [sidebarOpen, setSidebarOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [theme, setTheme] = useState<Theme>('dracula')
-  const [confirmDelete, setConfirmDelete] = useState<{ id: string; title: string } | null>(null)
+  const [confirmDelete, setConfirmDelete] = useState<{ title: string; doDelete: () => void } | null>(null)
+  const [search, setSearch] = useState('')
+
   const abortRef = useRef<AbortController | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
   const initialized = useRef(false)
 
-  // ── init: auth + theme + conversations ──
+  // ── init ──
   useEffect(() => {
     if (initialized.current) return
     initialized.current = true
@@ -135,12 +410,24 @@ export default function Home() {
     setTheme(t)
     document.documentElement.setAttribute('data-theme', t)
     setConversations(loadConversations())
+    // open sidebar by default on wide screens
+    if (typeof window !== 'undefined' && window.matchMedia('(min-width: 1024px)').matches) {
+      setSidebarOpen(true)
+    }
   }, [])
 
-  // ── auto-scroll to bottom on message change ──
+  // ── auto-scroll on new content ──
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' })
   }, [messages, streaming])
+
+  // ── auto-resize textarea ──
+  useEffect(() => {
+    const el = textareaRef.current
+    if (!el) return
+    el.style.height = 'auto'
+    el.style.height = Math.min(el.scrollHeight, 160) + 'px'
+  }, [input])
 
   // ── handlers ──
   const handleTheme = useCallback((t: Theme) => {
@@ -172,6 +459,11 @@ export default function Home() {
       setMessages([])
     }
   }, [activeId])
+
+  const handleRename = useCallback((id: string, title: string) => {
+    renameConversation(id, title)
+    setConversations(loadConversations())
+  }, [])
 
   const clearAll = useCallback(() => {
     clearAllConversations()
@@ -206,7 +498,7 @@ export default function Home() {
     try {
       const res = await sendChatStream(
         newMessages.map(({ role, content }) => ({ role, content })),
-        (delta) => {
+        delta => {
           setMessages(prev => prev.map(m =>
             m.id === assistantId ? { ...m, content: m.content + delta } : m
           ))
@@ -214,15 +506,11 @@ export default function Home() {
         abort.signal,
       )
       const finalAssistant: ChatMessage = {
-        id: assistantId,
-        role: 'assistant',
-        content: res.message,
-        sources: res.sources,
+        id: assistantId, role: 'assistant', content: res.message, sources: res.sources,
       }
       const finalMessages = [...newMessages, finalAssistant]
       setMessages(finalMessages)
 
-      // persist conversation
       const convId = activeId ?? uuidv4()
       const now = Date.now()
       const existing = conversations.find(c => c.id === convId)
@@ -238,7 +526,6 @@ export default function Home() {
       if (!activeId) setActiveId(convId)
     } catch (e) {
       if (e instanceof Error && e.name === 'AbortError') {
-        // keep whatever streamed in before abort — strip the placeholder if empty
         setMessages(prev => prev.filter(m => m.id !== assistantId || m.content.length > 0))
       } else {
         const msg = e instanceof Error ? e.message : 'Request failed'
@@ -260,108 +547,71 @@ export default function Home() {
 
   // ── render ──
   return (
-    <div className="flex h-full bg-[color:var(--bg)] text-[color:var(--fg)]">
-      {/* sidebar */}
-      <aside className={`${sidebarOpen ? 'w-64' : 'w-0'} transition-all duration-200 overflow-hidden bg-[color:var(--surface)] flex flex-col`}>
-        <div className="p-3 border-b border-[color:var(--fg)]/10 flex items-center gap-2">
-          <button
-            onClick={newConversation}
-            className="flex-1 flex items-center gap-2 px-3 py-2 rounded-md bg-[color:var(--primary)]/10 hover:bg-[color:var(--primary)]/20 text-sm font-medium transition"
-          >
-            <NewChatIcon /> New chat
-          </button>
-          <button
-            onClick={() => setSettingsOpen(true)}
-            className="p-2 rounded-md hover:bg-[color:var(--fg)]/10 transition"
-            title="Settings"
-          >
-            <GearIcon />
-          </button>
-        </div>
-
-        <div className="flex-1 overflow-y-auto p-2 space-y-1">
-          {conversations.length === 0 && (
-            <p className="text-xs opacity-50 px-2 py-3">No conversations yet.</p>
-          )}
-          {conversations.map(c => (
-            <div
-              key={c.id}
-              className={`group flex items-center gap-2 px-3 py-2 rounded-md cursor-pointer transition ${
-                c.id === activeId ? 'bg-[color:var(--primary)]/15' : 'hover:bg-[color:var(--fg)]/5'
-              }`}
-              onClick={() => loadConversation(c.id)}
-            >
-              <div className="flex-1 min-w-0">
-                <div className="text-sm truncate">{c.title}</div>
-                <div className="text-xs opacity-50">{relativeTime(c.updatedAt)}</div>
-              </div>
-              <button
-                onClick={e => { e.stopPropagation(); setConfirmDelete({ id: c.id, title: c.title }) }}
-                className="opacity-0 group-hover:opacity-70 hover:opacity-100 transition"
-                title="Delete"
-              >
-                <TrashIcon />
-              </button>
-            </div>
-          ))}
-        </div>
-
-        {conversations.length > 0 && (
-          <div className="p-2 border-t border-[color:var(--fg)]/10">
-            <button
-              onClick={clearAll}
-              className="w-full text-xs opacity-60 hover:opacity-100 py-2 transition"
-            >
-              Clear all
-            </button>
-          </div>
-        )}
-      </aside>
+    <div className="flex h-full bg-bg text-fg">
+      <Sidebar
+        visible={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
+        conversations={conversations}
+        activeId={activeId}
+        query={search}
+        setQuery={setSearch}
+        onSelectConv={loadConversation}
+        onDeleteConv={(id, title) => setConfirmDelete({ title, doDelete: () => removeConversation(id) })}
+        onRenameConv={handleRename}
+        onNewChat={newConversation}
+        onOpenSettings={() => { setSettingsOpen(true); setSidebarOpen(false) }}
+        onClearAll={clearAll}
+      />
 
       {/* main column */}
-      <div className="flex-1 flex flex-col min-w-0">
-        <header className="px-4 py-3 border-b border-[color:var(--fg)]/10 flex items-center gap-3">
+      <div className="flex-1 flex flex-col min-w-0 bg-bg">
+        <header className="px-3 py-3 flex items-center gap-2 shrink-0">
           <button
-            onClick={() => setSidebarOpen(o => !o)}
-            className="p-2 rounded-md hover:bg-[color:var(--fg)]/10 transition"
-            title="Toggle sidebar"
+            onClick={() => setSidebarOpen(true)}
+            className="flex h-9 w-9 items-center justify-center rounded-lg text-fg-3 hover:bg-surface hover:text-fg transition-colors"
+            title="Open chats"
+            aria-label="Open chats"
           >
             <MenuIcon />
           </button>
-          <h1 className="text-sm font-medium opacity-80">Quill</h1>
+          <h1 className="flex-1 text-sm font-medium text-fg">Quill</h1>
+          <button
+            onClick={() => setSettingsOpen(true)}
+            className="flex h-9 w-9 items-center justify-center rounded-lg text-fg-3 hover:bg-surface hover:text-fg transition-colors"
+            title="Settings"
+            aria-label="Open settings"
+          >
+            <GearIcon />
+          </button>
         </header>
 
         <div ref={scrollRef} className="flex-1 overflow-y-auto">
           <div className="max-w-3xl mx-auto px-4 py-6 space-y-4">
             {messages.length === 0 && (
-              <div className="text-center py-12 opacity-50 text-sm">
+              <div className="text-center py-16 text-fg-4 text-sm">
                 Start a conversation.
               </div>
             )}
             {messages.map(m => (
-              <div
-                key={m.id}
-                className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}
-              >
-                <div
-                  className={`max-w-[85%] px-4 py-3 rounded-lg ${
-                    m.role === 'user'
-                      ? 'bg-[color:var(--primary)]/15'
-                      : 'bg-[color:var(--surface)]'
-                  }`}
-                >
-                  <div className="prose prose-sm max-w-none [&>*]:my-2 [&>:first-child]:mt-0 [&>:last-child]:mb-0 [&_a]:text-[color:var(--primary)] [&_a]:underline">
-                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{m.content}</ReactMarkdown>
-                  </div>
+              <div key={m.id} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                <div className={`max-w-[85%] px-4 py-3 rounded-2xl text-sm ${
+                  m.role === 'user'
+                    ? 'bg-primary/15 text-fg'
+                    : 'bg-surface text-fg'
+                }`}>
+                  {m.role === 'assistant' && m.content.length === 0 && streaming
+                    ? <span className="inline-flex gap-1 items-end h-4"><span className="typing-dot h-1.5 w-1.5 rounded-full bg-fg-3" /><span className="typing-dot h-1.5 w-1.5 rounded-full bg-fg-3" /><span className="typing-dot h-1.5 w-1.5 rounded-full bg-fg-3" /></span>
+                    : <div className="prose prose-sm max-w-none [&>*]:my-2 [&>:first-child]:mt-0 [&>:last-child]:mb-0 [&_a]:text-primary [&_a]:underline [&_code]:px-1 [&_code]:py-0.5 [&_code]:rounded [&_code]:bg-surface-2 [&_pre]:bg-surface-2 [&_pre]:p-3 [&_pre]:rounded-lg [&_pre]:overflow-x-auto">
+                        <ReactMarkdown remarkPlugins={[remarkGfm]}>{m.content}</ReactMarkdown>
+                      </div>
+                  }
                   {m.sources && m.sources.length > 0 && (
-                    <div className="mt-3 pt-3 border-t border-[color:var(--fg)]/10">
-                      <div className="text-xs opacity-60 mb-1">Sources</div>
+                    <div className="mt-3 pt-3 border-t border-white/10">
+                      <div className="text-[10px] text-fg-3 mb-1 uppercase tracking-wider">Sources</div>
                       <ul className="space-y-1">
                         {m.sources.map((s, i) => (
                           <li key={i} className="text-xs">
-                            <a href={s.url} target="_blank" rel="noopener noreferrer" className="text-[color:var(--primary)] hover:underline">
-                              {s.title}
-                            </a>
+                            <a href={s.url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">{s.title}</a>
                           </li>
                         ))}
                       </ul>
@@ -370,49 +620,60 @@ export default function Home() {
                 </div>
               </div>
             ))}
-            {streaming && (
-              <div className="flex justify-start">
-                <div className="bg-[color:var(--surface)] px-4 py-3 rounded-lg text-sm opacity-60">
-                  Thinking…
-                </div>
-              </div>
-            )}
-            {error && (
-              <div className="bg-red-500/10 border border-red-500/30 text-red-500 px-4 py-3 rounded-lg text-sm">
-                {error}
-              </div>
-            )}
           </div>
         </div>
 
-        <div className="border-t border-[color:var(--fg)]/10 p-4">
-          <div className="max-w-3xl mx-auto flex gap-2 items-end">
+        {/* error banner */}
+        {error && (
+          <div className="relative mx-4 mb-2 rounded-xl border px-4 py-2.5 pr-8" style={{ background: 'var(--error-bg)', borderColor: 'var(--error-border)' }}>
+            <button onClick={() => setError(null)} className="absolute top-2.5 right-2.5 hover:opacity-100" style={{ color: 'var(--error-fg)' }} aria-label="Dismiss error"><CloseIcon /></button>
+            <span className="text-sm" style={{ color: 'var(--error-fg)' }}>{error}</span>
+          </div>
+        )}
+
+        {/* composer */}
+        <div className="px-4 pb-4 pt-2 shrink-0">
+          <div className="max-w-3xl mx-auto rounded-3xl border border-white/10 bg-surface transition-colors focus-within:border-primary/40">
             <textarea
+              ref={textareaRef}
               value={input}
               onChange={e => setInput(e.target.value)}
               onKeyDown={onKeyDown}
               placeholder="Send a message…"
               rows={1}
-              className="flex-1 resize-none rounded-md bg-[color:var(--surface)] border border-[color:var(--fg)]/10 px-3 py-2 text-sm focus:outline-none focus:border-[color:var(--primary)]/50 max-h-40"
+              className="w-full resize-none bg-transparent px-4 pt-3.5 pb-2 text-sm text-fg placeholder:text-fg-4 outline-none disabled:opacity-50"
+              style={{ maxHeight: '160px', overflowY: 'auto' }}
               disabled={streaming}
             />
-            <button
-              onClick={streaming ? stop : send}
-              disabled={!streaming && !input.trim()}
-              className="p-3 rounded-md bg-[color:var(--primary)] text-[color:var(--bg)] disabled:opacity-30 disabled:cursor-not-allowed hover:opacity-90 transition"
-              title={streaming ? 'Stop' : 'Send'}
-            >
-              {streaming ? <StopIcon /> : <SendIcon />}
-            </button>
+            <div className="flex items-center justify-end px-2.5 pb-2.5">
+              {streaming ? (
+                <button
+                  onClick={stop}
+                  title="Stop"
+                  className="flex h-8 w-8 items-center justify-center rounded-xl bg-primary text-on-primary hover:opacity-90 transition-opacity"
+                >
+                  <StopIcon />
+                </button>
+              ) : (
+                <button
+                  onClick={send}
+                  disabled={!input.trim()}
+                  title="Send"
+                  className="flex h-8 w-8 items-center justify-center rounded-xl bg-primary text-on-primary hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed transition-opacity"
+                >
+                  <SendIcon />
+                </button>
+              )}
+            </div>
           </div>
         </div>
       </div>
 
-      {settingsOpen && <SettingsModal theme={theme} onTheme={handleTheme} onClose={() => setSettingsOpen(false)} />}
+      {settingsOpen && <SettingsPanel theme={theme} onTheme={handleTheme} onClose={() => setSettingsOpen(false)} />}
       {confirmDelete && (
         <DeleteConfirmModal
           label={`"${confirmDelete.title}"`}
-          onConfirm={() => { removeConversation(confirmDelete.id); setConfirmDelete(null) }}
+          onConfirm={() => { confirmDelete.doDelete(); setConfirmDelete(null) }}
           onCancel={() => setConfirmDelete(null)}
         />
       )}

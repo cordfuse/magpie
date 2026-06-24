@@ -27,6 +27,15 @@ export function deleteConversation(id: string) {
   saveConversations(loadConversations().filter(c => c.id !== id))
 }
 
+export function renameConversation(id: string, title: string) {
+  const all = loadConversations()
+  const idx = all.findIndex(c => c.id === id)
+  if (idx < 0) return
+  all[idx] = { ...all[idx], title, updatedAt: Date.now() }
+  all.sort((a, b) => b.updatedAt - a.updatedAt)
+  saveConversations(all)
+}
+
 export function clearAllConversations() {
   localStorage.removeItem(CONV_KEY)
 }

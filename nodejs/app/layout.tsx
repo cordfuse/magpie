@@ -1,6 +1,5 @@
 import type { Metadata, Viewport } from 'next'
 import './globals.css'
-import UpdateBanner from './UpdateBanner'
 
 export const metadata: Metadata = {
   title: 'Quill',
@@ -10,7 +9,7 @@ export const metadata: Metadata = {
 }
 
 export const viewport: Viewport = {
-  themeColor: '#202124',
+  themeColor: '#282a36',
   width: 'device-width',
   initialScale: 1,
 }
@@ -27,7 +26,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body className="h-full overflow-hidden">
         {children}
-        <UpdateBanner />
       </body>
     </html>
   )

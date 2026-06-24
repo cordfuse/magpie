@@ -1,12 +1,12 @@
 {
-  "id": "/?app=mighty-qr",
-  "name": "Mighty AI QR",
-  "short_name": "Mighty QR",
-  "description": "Generate NUX MightyAmp QR codes from natural language tone descriptions",
+  "id": "/?app=quill",
+  "name": "Quill",
+  "short_name": "Quill",
+  "description": "Agent-agnostic AI chatbot framework",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#202124",
-  "theme_color": "#202124",
+  "background_color": "#282a36",
+  "theme_color": "#282a36",
   "icons": [
     { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
     { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
