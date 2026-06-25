@@ -239,23 +239,51 @@ export interface ChatResult {
   sources?: { title: string; url: string }[]
 }
 
-// Translate our incoming wire shape to AI SDK's ModelMessage[] (system goes
-// in a separate `system` field on streamText, so it's not in this list).
-function toModelMessages(messages: ChatMessage[]): ModelMessage[] {
-  return messages.map(m => {
+// Translate our incoming wire shape to AI SDK's ModelMessage[]. The first
+// message is the system prompt — packaged as a SystemModelMessage so we can
+// attach provider-specific options (Anthropic cacheControl) to it cleanly,
+// rather than passing it as the bare `system:` parameter on streamText.
+function toModelMessages(
+  systemPrompt: string,
+  messages: ChatMessage[],
+  providerId: string,
+): ModelMessage[] {
+  const out: ModelMessage[] = []
+
+  // System message — Anthropic prompt-caching marker goes here. The system
+  // prompt is by definition stable across a multi-turn chat, so it's the
+  // highest-leverage marker for cache hits. ephemeral = 5-min TTL, no extra
+  // cost beyond a one-time cache-write fee on first turn; subsequent turns
+  // pay ~10% of normal input tokens for the cached portion.
+  out.push(
+    providerId === 'anthropic'
+      ? {
+          role: 'system',
+          content: systemPrompt,
+          providerOptions: { anthropic: { cacheControl: { type: 'ephemeral' } } },
+        }
+      : { role: 'system', content: systemPrompt },
+  )
+
+  for (const m of messages) {
     if (typeof m.content === 'string') {
-      return { role: m.role, content: m.content }
-    }
-    // Multimodal content — translate image_url blocks to AI SDK's image part
-    // shape and text blocks to text parts.
-    return {
-      role: m.role,
-      content: m.content.map(block => {
+      out.push({ role: m.role, content: m.content })
+    } else {
+      // Multimodal content — translate image_url blocks to AI SDK's image
+      // part shape and text blocks to text parts. AI SDK narrows the role
+      // type per message variant; the cast tells TS the runtime guarantee
+      // (m.role is always 'user' for multimodal in practice — assistant
+      // messages from our store are always plain strings).
+      const parts = m.content.map(block => {
         if (block.type === 'text') return { type: 'text' as const, text: block.text }
         return { type: 'image' as const, image: new URL(block.image_url.url) }
-      }),
+      })
+      if (m.role === 'user') out.push({ role: 'user', content: parts })
+      else out.push({ role: 'assistant', content: parts.filter(p => p.type === 'text') })
     }
-  }) as ModelMessage[]
+  }
+
+  return out
 }
 
 // ─── Tool definitions ───────────────────────────────────────────────────────
@@ -364,8 +392,12 @@ export async function runChat(
 
   const result = await generateText({
     model: p.createModel(model),
-    system: systemPrompt,
-    messages: toModelMessages(messages),
+    messages: toModelMessages(systemPrompt, messages, providerId),
+    // The system prompt lives in the messages array (not as `system:`) so
+    // we can attach Anthropic's cacheControl providerOption to it. Our
+    // system prompt is operator-controlled config, not user input, so the
+    // prompt-injection concern this flag warns about doesn't apply.
+    allowSystemInMessages: true,
     tools: Object.keys(tools).length ? tools : undefined,
     stopWhen: stepCountIs(MAX_TOOL_ROUNDS),
     ...(typeof options.temperature === 'number' ? { temperature: options.temperature } : {}),
@@ -395,8 +427,10 @@ export async function* runChatStream(
 
   const result = streamText({
     model: p.createModel(model),
-    system: systemPrompt,
-    messages: toModelMessages(messages),
+    messages: toModelMessages(systemPrompt, messages, providerId),
+    // See runChat above — operator-controlled system prompt, so the
+    // prompt-injection advisory doesn't apply.
+    allowSystemInMessages: true,
     tools: Object.keys(tools).length ? tools : undefined,
     stopWhen: stepCountIs(MAX_TOOL_ROUNDS),
     ...(typeof options.temperature === 'number' ? { temperature: options.temperature } : {}),
