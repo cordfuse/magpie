@@ -66,8 +66,23 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   })};`
 
   return (
-    <html lang={activeLocale} className={`h-dvh ${inter.variable}`} suppressHydrationWarning>
+    <html
+      lang={activeLocale}
+      translate="no"
+      className={`h-dvh notranslate ${inter.variable}`}
+      suppressHydrationWarning
+    >
       <head>
+        {/* Block browser auto-translate (Chrome on Android is the
+            common offender). Magpie's own i18n handles language
+            switching; auto-translate would clobber strings, break
+            voice locale alignment, and produce confusing mismatches
+            between picked language and visible text. The translate="no"
+            attribute is the HTML5 standard signal; the `notranslate`
+            class is Chrome's older hint; the meta tag is the
+            Google-specific belt-and-braces. User can still manually
+            translate from the Chrome menu if they really want. */}
+        <meta name="google" content="notranslate" />
         {themeCss && (
           <style dangerouslySetInnerHTML={{ __html: themeCss }} />
         )}
