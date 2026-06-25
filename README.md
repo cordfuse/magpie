@@ -1,6 +1,6 @@
 # Magpie
 
-[![version](https://img.shields.io/badge/version-0.1.0-2ea44f.svg)](https://github.com/cordfuse/magpie/releases)
+[![version](https://img.shields.io/badge/version-0.2.0-2ea44f.svg)](https://github.com/cordfuse/magpie/releases)
 [![license](https://img.shields.io/badge/license-MIT-2ea44f.svg)](LICENSE)
 
 <table>
@@ -39,15 +39,15 @@ A single Next.js app, no database, no signup. Point it at any of 12 LLM provider
 
 ## Features
 
-- **Multi-provider via [`token.js`](https://www.npmjs.com/package/token.js)** — 9 cloud (Anthropic, OpenAI, Gemini, Groq, Mistral, Cohere, Perplexity, AWS Bedrock, AI21) + 3 local OpenAI-compatible (Ollama, llama.cpp, LM Studio). Switch with one env var.
+- **Multi-provider via [Vercel AI SDK](https://ai-sdk.dev)** — 8 cloud (Anthropic, OpenAI, Gemini, Groq, Mistral, Cohere, Perplexity, AWS Bedrock) + 3 local OpenAI-compatible (Ollama, llama.cpp, LM Studio). Switch with one env var. Prompt caching enabled on Anthropic out of the box (~10% input-token cost on multi-turn cache hits).
 - **MCP support** — add any number of MCP servers (HTTP or stdio) via `config/magpie-mcp.json`. Tools are namespaced and auto-discovered.
-- **Web search** — Tavily integration with a composer toggle. Hide the toggle to make search always-on.
+- **Web search — native or Tavily** — `MAGPIE_SEARCH_BACKEND=auto` (default) uses the provider's first-party search where available (Anthropic web_search, Google grounding, Perplexity Sonar) and falls back to Tavily for the rest. Set to `native` or `tavily` to force one.
 - **Resumable streams** — server keeps a 5-minute replay buffer; clients reconnect via `Last-Event-ID` after dropped sockets (mobile-tab background, proxy hiccup, network blip). No lost tokens.
-- **Kiosk mode** — six env flags to lock down the UI surface: settings panel, chat history, web search, MCP picker, model picker, attachments. Hidden controls still run server-side using whatever's configured.
-- **Drop-in branding** — edit `config/magpie.config.json` (app name, welcome message, starter prompts, theme colors, favicon, PWA icons). Next page request picks up the change. No rebuild.
-- **25 built-in themes + custom themes** — 13 dark + 12 light shipped; add your own under `themes[]` in the config.
+- **Kiosk mode** — nine env flags to lock down the UI surface: header (whole bar / just title / just icon), settings panel, chat history, web search, MCP picker, model picker, attachments. Hidden controls still run server-side using whatever's configured.
+- **Drop-in branding** — edit `config/magpie.config.json` (app name, welcome message, starter prompts, theme colors, favicon, PWA icons). Drop a `config/custom.css` for fine-grained styling (fonts, per-area colors). Next page request picks up the change. No rebuild.
+- **25 built-in themes + custom themes + per-area CSS hooks** — 13 dark + 12 light shipped; add your own under `themes[]` in the config. The header, assistant bubble, and composer pill each carry a dedicated CSS class so deployments can restyle one without dragging the others.
 - **Document + image attachments** — PDF, DOCX, XLSX, plain text, images. Extracted server-side.
-- **PWA-ready** — manifest, installable, runs offline at the shell level.
+- **PWA-ready** — manifest, installable on Android Chrome and desktop browsers.
 - **No database** — conversations persist in browser `localStorage` (unless kiosk mode disables persistence).
 
 ## Quick start (Docker)
@@ -116,6 +116,9 @@ In Docker, point local-provider base URLs at `host.docker.internal:<port>` (the 
 | `MAGPIE_TEMPERATURE` | Sampling temperature | `1.0` |
 | `MAGPIE_SEARCH_BACKEND` | Web search source: `auto` (native when available, Tavily otherwise), `native` (Anthropic / Google / Perplexity only), or `tavily` (uniform) | `auto` |
 | `MAGPIE_CONFIG_DIR` | Where `magpie.config.json` + `magpie-mcp.json` + `icons/` live | `./config` |
+| `MAGPIE_SHOW_HEADER` | Show the top header bar at all (`1`/`0`) | `1` |
+| `MAGPIE_SHOW_HEADER_ICON` | Show the app icon in the header | `1` |
+| `MAGPIE_SHOW_HEADER_TITLE` | Show the app name in the header | `1` |
 | `MAGPIE_SHOW_SETTINGS` | Show the settings gear (`1`/`0`) | `1` |
 | `MAGPIE_PERSIST_CHAT` | Persist chat history to localStorage + show sidebar | `1` |
 | `MAGPIE_SHOW_WEB_SEARCH` | Show the web search globe toggle | `1` |
@@ -234,11 +237,12 @@ MCP servers connect at app boot. Restart the container after editing this file.
 
 ### Kiosk mode
 
-The six `MAGPIE_SHOW_*` flags + `MAGPIE_PERSIST_CHAT` let you sculpt the UI surface per deployment. Hidden = the UI control is gone; the backing feature still runs server-side using whatever's configured. To disable a feature entirely, don't configure it (e.g. omit `TAVILY_API_KEY` to disable web search even when the toggle is hidden).
+The eight `MAGPIE_SHOW_*` flags + `MAGPIE_PERSIST_CHAT` let you sculpt the UI surface per deployment. Hidden = the UI control is gone; the backing feature still runs server-side using whatever's configured. To disable a feature entirely, don't configure it (e.g. omit `TAVILY_API_KEY` and skip native search to disable web search even when the toggle is hidden).
 
-Typical embedded-widget config:
+Typical embedded-widget config (no header, no chat history, no toggles — just an input):
 
 ```bash
+MAGPIE_SHOW_HEADER=0
 MAGPIE_SHOW_SETTINGS=0
 MAGPIE_PERSIST_CHAT=0
 MAGPIE_SHOW_WEB_SEARCH=0
@@ -247,7 +251,27 @@ MAGPIE_SHOW_MODEL_PICKER=0
 MAGPIE_SHOW_ATTACHMENTS=0
 ```
 
-Web search and MCP keep running on every message (if their keys/configs are set) — the toggles are just hidden.
+Web search and MCP keep running on every message (if their keys/configs are set) — the toggles are just hidden. Use `MAGPIE_SHOW_HEADER_ICON=0` / `MAGPIE_SHOW_HEADER_TITLE=0` to keep the bar but drop just the icon or title.
+
+### Custom CSS
+
+Drop a `nodejs/config/custom.css` file (next to `magpie.config.json` in the mounted volume) and Magpie injects it into every page's `<head>` after the built-in styles. Use it for custom fonts, per-area color overrides, or any CSS the deployment needs without rebuilding the image. Three dedicated classes are exposed for targeting:
+
+- `.magpie-header` — top bar
+- `.magpie-assistant-bubble` — assistant message bubbles
+- `.magpie-composer-pill` — input composer
+
+Each defaults to `var(--surface)` but reads from `--header-bg` / `--assistant-bubble-bg` / `--composer-bg` if you set them, so restyling one area doesn't drag the others along.
+
+Example `custom.css` swapping the font and giving the header its own color:
+
+```css
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600&display=swap');
+:root {
+  --font-sans: 'Space Grotesk', system-ui, sans-serif;
+  --header-bg: #1a1a2e;
+}
+```
 
 ## Repo layout
 
@@ -259,6 +283,7 @@ magpie/
 │   ├── config/             # runtime config (mounted as a volume in Docker)
 │   │   ├── magpie.config.json     # branding + themes + welcome + starter prompts
 │   │   ├── magpie-mcp.json        # MCP server list
+│   │   ├── custom.css             # operator CSS overrides — optional
 │   │   └── icons/                # PNGs served via /branding/*
 │   └── package.json
 ├── docker/                 # Dockerfile + three compose variants + Caddyfile
