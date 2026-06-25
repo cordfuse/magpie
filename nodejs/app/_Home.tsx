@@ -18,6 +18,7 @@ import {
   getTtsEnabled, setTtsEnabled,
 } from '@/lib/storage'
 import type { ChatMessage, Conversation, Attachment } from '@/lib/types'
+import { useT, useLocale, useAvailableLocales, setLocaleAndReload, labelForLocale } from '@/lib/i18n/client'
 
 // ─── theme palette ───────────────────────────────────────────────────────────
 //
@@ -338,9 +339,13 @@ function SettingsPanel({
   const [closing, setClosing] = useState(false)
   const [themeOpen, setThemeOpen] = useState(false)
   const [providerOpen, setProviderOpen] = useState(false)
+  const [localeOpen, setLocaleOpen] = useState(false)
   // Local draft state for the system prompt textarea so the user can type
   // without each keystroke writing to localStorage. Commits on blur.
   const [promptDraft, setPromptDraft] = useState(customSystemPrompt ?? '')
+  const t = useT()
+  const activeLocale = useLocale()
+  const availableLocales = useAvailableLocales()
 
   const handleClose = () => {
     setClosing(true)
@@ -383,16 +388,56 @@ function SettingsPanel({
       <div className="fixed inset-0 z-40 bg-black/50" onClick={handleClose} />
       <aside className={`fixed right-0 top-0 z-50 flex h-full w-[min(20rem,100vw)] flex-col bg-surface shadow-2xl ${closing ? 'animate-slide-out-right' : 'animate-slide-in-right'}`}>
         <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
-          <h2 className="text-sm font-medium text-fg">Settings</h2>
-          <button onClick={handleClose} className="text-fg-3 hover:text-fg transition-colors" aria-label="Close settings">
+          <h2 className="text-sm font-medium text-fg">{t('settings.title', 'Settings')}</h2>
+          <button onClick={handleClose} className="text-fg-3 hover:text-fg transition-colors" aria-label={t('settings.close', 'Close settings')}>
             <CloseIcon />
           </button>
         </div>
 
         <div className="flex-1 overflow-y-auto p-5 space-y-6">
+          {/* Language */}
+          {availableLocales.length > 1 && (
+            <div>
+              <p className="text-[10px] font-semibold text-fg-3 uppercase tracking-wider mb-2">{t('settings.language', 'Language')}</p>
+              <div className="relative">
+                <button
+                  onClick={() => setLocaleOpen(o => !o)}
+                  className="flex w-full items-center gap-2.5 rounded-lg border border-white/10 bg-surface-2 px-3 py-2.5 text-sm text-fg hover:bg-surface-3 transition-colors"
+                >
+                  <span className="flex-1 text-left">{labelForLocale(activeLocale)}</span>
+                  <span className="text-[10px] text-fg-4 uppercase">{activeLocale}</span>
+                  <ChevronIcon open={localeOpen} />
+                </button>
+                {localeOpen && (
+                  <>
+                    <div className="fixed inset-0 z-10" onClick={() => setLocaleOpen(false)} />
+                    <div className="absolute left-0 right-0 top-full z-20 mt-1 rounded-lg border border-white/10 bg-surface-2 shadow-xl overflow-hidden max-h-[60vh] overflow-y-auto">
+                      {availableLocales.map(code => {
+                        const isActive = code === activeLocale
+                        return (
+                          <button
+                            key={code}
+                            onClick={() => { setLocaleOpen(false); setLocaleAndReload(code) }}
+                            className={`flex w-full items-center gap-2.5 px-3 py-2 text-sm transition-colors ${
+                              isActive ? 'text-primary bg-primary/10' : 'text-fg-2 hover:bg-surface-3 hover:text-fg'
+                            }`}
+                          >
+                            <span className="flex-1 text-left">{labelForLocale(code)}</span>
+                            <span className="text-[10px] opacity-60 uppercase">{code}</span>
+                            {isActive && <span className="ml-1 text-primary shrink-0">✓</span>}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+          )}
+
           {/* Theme */}
           <div>
-            <p className="text-[10px] font-semibold text-fg-3 uppercase tracking-wider mb-2">Theme</p>
+            <p className="text-[10px] font-semibold text-fg-3 uppercase tracking-wider mb-2">{t('settings.theme', 'Theme')}</p>
             <div className="relative">
               <button
                 onClick={() => setThemeOpen(o => !o)}
@@ -511,7 +556,7 @@ function SettingsPanel({
 
           {/* System prompt */}
           <div>
-            <p className="text-[10px] font-semibold text-fg-3 uppercase tracking-wider mb-2">System prompt</p>
+            <p className="text-[10px] font-semibold text-fg-3 uppercase tracking-wider mb-2">{t('settings.systemPrompt', 'System prompt')}</p>
             <textarea
               value={promptDraft}
               onChange={e => setPromptDraft(e.target.value)}
@@ -536,7 +581,7 @@ function SettingsPanel({
           {/* Temperature */}
           <div>
             <div className="flex items-baseline justify-between mb-1">
-              <p className="text-[10px] font-semibold text-fg-3 uppercase tracking-wider">Temperature</p>
+              <p className="text-[10px] font-semibold text-fg-3 uppercase tracking-wider">{t('settings.temperature', 'Temperature')}</p>
               <span className="text-[10px] text-fg-4">
                 {customTemperature !== null ? customTemperature.toFixed(2) : 'default'}
               </span>
@@ -553,32 +598,32 @@ function SettingsPanel({
                 onClick={() => onTemperature(null)}
                 className="mt-1 text-[10px] text-fg-4 hover:text-fg-2 transition-colors"
               >
-                Clear override → use server default
+                {t('settings.clearOverride', 'Clear override → use server default')}
               </button>
             )}
           </div>
 
           {/* Data: Import / Export / Reset on a single row */}
           <div>
-            <p className="text-[10px] font-semibold text-fg-3 uppercase tracking-wider mb-2">Data</p>
+            <p className="text-[10px] font-semibold text-fg-3 uppercase tracking-wider mb-2">{t('settings.data', 'Data')}</p>
             <div className="grid grid-cols-3 gap-2">
               <button
                 onClick={onImport}
                 className="rounded-lg border border-white/10 bg-surface-2 px-3 py-2 text-xs text-fg-2 hover:bg-surface-3 hover:text-fg transition-colors"
               >
-                Import…
+                {t('settings.import', 'Import…')}
               </button>
               <button
                 onClick={onExport}
                 className="rounded-lg border border-white/10 bg-surface-2 px-3 py-2 text-xs text-fg-2 hover:bg-surface-3 hover:text-fg transition-colors"
               >
-                Export…
+                {t('settings.export', 'Export…')}
               </button>
               <button
                 onClick={onResetAll}
                 className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-400 hover:bg-red-500/20 transition-colors"
               >
-                Reset
+                {t('settings.reset', 'Reset')}
               </button>
             </div>
           </div>
@@ -589,7 +634,7 @@ function SettingsPanel({
             onClick={() => window.location.reload()}
             className="hover:text-fg-2 transition-colors"
           >
-            Check for updates
+            {t('settings.checkForUpdates', 'Check for updates')}
           </button>
           <span>{branding.name} v{APP_VERSION}</span>
         </div>
@@ -680,6 +725,7 @@ function Sidebar({
   onClearAll: () => void
   appName: string
 }) {
+  const t = useT()
   const q = query.trim().toLowerCase()
   const filtered = q
     ? conversations.filter(c => c.title.toLowerCase().includes(q) ||
@@ -701,14 +747,14 @@ function Sidebar({
             <MagpieIcon />
             <span className="text-sm font-medium text-fg whitespace-nowrap">{appName}</span>
           </div>
-          <button onClick={onClose} className="flex h-7 w-7 items-center justify-center rounded-lg text-fg-3 hover:bg-surface-2 hover:text-fg transition-colors lg:hidden" aria-label="Close sidebar">
+          <button onClick={onClose} className="flex h-7 w-7 items-center justify-center rounded-lg text-fg-3 hover:bg-surface-2 hover:text-fg transition-colors lg:hidden" aria-label={t('sidebar.closeSidebar', 'Close sidebar')}>
             <CloseIcon />
           </button>
         </div>
 
         {/* tabs-row equivalent — mighty puts Delete-all-chats here, right-aligned, under a thin divider. Magpie has no tabs, so the row is just label + clear-all */}
         <div className="flex items-center border-b border-white/10 ml-3 mr-[17px] h-9">
-          <span className="text-xs font-medium text-fg-3">Chats</span>
+          <span className="text-xs font-medium text-fg-3">{t('sidebar.chats', 'Chats')}</span>
           <div className="flex-1" />
           {conversations.length > 0 && (
             <button
@@ -729,7 +775,7 @@ function Sidebar({
             <input
               value={query}
               onChange={e => setQuery(e.target.value)}
-              placeholder="Search chats…"
+              placeholder={t('sidebar.searchPlaceholder', 'Search chats…')}
               className="w-full rounded-lg bg-surface-2 py-1.5 pl-7 pr-7 text-xs text-fg placeholder:text-fg-4 outline-none focus:ring-1 focus:ring-primary/40"
             />
             {query && (
@@ -743,7 +789,7 @@ function Sidebar({
         {/* conv list */}
         <div className="flex-1 overflow-y-auto py-1 [scrollbar-gutter:stable]">
           {filtered.length === 0
-            ? <p className="px-4 py-6 text-center text-[11px] text-fg-4">{q ? 'No matches' : 'No conversations yet'}</p>
+            ? <p className="px-4 py-6 text-center text-[11px] text-fg-4">{q ? t('sidebar.noMatches', 'No matches') : t('sidebar.noConversations', 'No conversations yet')}</p>
             : filtered.map(conv => (
               <ConvItem
                 key={conv.id}
@@ -965,6 +1011,8 @@ export default function Home({
   // missing (older callers/tests). Both ultimately resolve to "all true"
   // (full UI) when nothing's configured.
   const flags: MagpieFlags = serverFlags ?? getMagpieFlags()
+  const t = useT()
+  const locale = useLocale()
   const [conversations, setConversations] = useState<Conversation[]>([])
   const [activeId, setActiveId] = useState<string | null>(null)
   const [messages, setMessages] = useState<ChatMessage[]>([])
@@ -1199,8 +1247,12 @@ export default function Home({
       .trim()
     if (!plain) return
     window.speechSynthesis.cancel()  // never let two utterances overlap
-    window.speechSynthesis.speak(new SpeechSynthesisUtterance(plain))
-  }, [])
+    const utter = new SpeechSynthesisUtterance(plain)
+    // Tag the utterance with the active UI locale so the synthesizer
+    // picks a matching voice instead of defaulting to browser-locale.
+    utter.lang = locale || (typeof navigator !== 'undefined' ? navigator.language : 'en-US')
+    window.speechSynthesis.speak(utter)
+  }, [locale])
 
   // Voice input — toggle SpeechRecognition. On stop (silence or manual),
   // auto-sends the accumulated transcript so voice queries flow end-to-end
@@ -1221,7 +1273,9 @@ export default function Home({
     const r: any = new SR()
     r.continuous = false
     r.interimResults = true
-    r.lang = navigator.language || 'en-US'
+    // Prefer the active UI locale so Spanish kiosks get the Spanish
+    // recognizer, etc. Falls back to browser locale, then English.
+    r.lang = locale || navigator.language || 'en-US'
     r.onstart = () => setIsListening(true)
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     r.onresult = (e: any) => {
@@ -1240,7 +1294,7 @@ export default function Home({
     r.onerror = () => setIsListening(false)
     recognitionRef.current = r
     r.start()
-  }, [isListening])
+  }, [isListening, locale])
 
   const toggleMcp = useCallback((id: string) => {
     setEnabledMcpsState(prev => {
@@ -1650,8 +1704,8 @@ export default function Home({
             <button
               onClick={() => setSidebarOpen(true)}
               className="flex h-9 w-9 items-center justify-center rounded-lg text-fg-3 hover:bg-surface hover:text-fg transition-colors"
-              title="Open chats"
-              aria-label="Open chats"
+              title={t('header.openChats', 'Open chats')}
+              aria-label={t('header.openChats', 'Open chats')}
             >
               <MenuIcon />
             </button>
@@ -1678,8 +1732,8 @@ export default function Home({
                 downloadTextFile(conversationToMarkdown(conv), `${safeTitle}.md`, 'text/markdown')
               }}
               className="flex h-9 w-9 items-center justify-center rounded-lg text-fg-3 hover:bg-surface hover:text-fg transition-colors"
-              title="Download chat as Markdown"
-              aria-label="Download current chat as Markdown"
+              title={t('header.downloadChat', 'Download chat as Markdown')}
+              aria-label={t('header.downloadChat', 'Download current chat as Markdown')}
             >
               <DownloadIcon />
             </button>
@@ -1695,8 +1749,8 @@ export default function Home({
                 })
               }}
               className="flex h-9 w-9 items-center justify-center rounded-lg text-fg-3 hover:bg-surface hover:text-red-400 transition-colors"
-              title="Delete chat"
-              aria-label="Delete current chat"
+              title={t('header.deleteChat', 'Delete chat')}
+              aria-label={t('header.deleteChat', 'Delete current chat')}
             >
               <TrashIcon />
             </button>
@@ -1705,8 +1759,8 @@ export default function Home({
             <button
               onClick={newConversation}
               className="flex h-9 w-9 items-center justify-center rounded-lg text-fg-3 hover:bg-surface hover:text-fg transition-colors"
-              title="New chat"
-              aria-label="New chat"
+              title={t('header.newChat', 'New chat')}
+              aria-label={t('header.newChat', 'New chat')}
             >
               <NewChatIcon />
             </button>
@@ -1715,8 +1769,8 @@ export default function Home({
             <button
               onClick={() => setSettingsOpen(true)}
               className="flex h-9 w-9 items-center justify-center rounded-lg text-fg-3 hover:bg-surface hover:text-fg transition-colors"
-              title="Settings"
-              aria-label="Open settings"
+              title={t('header.settings', 'Settings')}
+              aria-label={t('header.settings', 'Open settings')}
             >
               <GearIcon />
             </button>
@@ -1916,7 +1970,7 @@ export default function Home({
               value={input}
               onChange={e => setInput(e.target.value)}
               onKeyDown={onKeyDown}
-              placeholder="Send a message…"
+              placeholder={t('composer.placeholder', 'Send a message…')}
               rows={1}
               className="w-full resize-none bg-transparent px-4 pt-3.5 pb-2 text-sm text-fg placeholder:text-fg-4 outline-none disabled:opacity-50"
               style={{ maxHeight: '160px', overflowY: 'auto' }}
@@ -1931,8 +1985,8 @@ export default function Home({
                     <button
                       onClick={() => setAttachMenuOpen(o => !o)}
                       className="flex h-8 w-8 items-center justify-center rounded-lg text-fg-3 hover:bg-surface-2 hover:text-fg transition-colors"
-                      title="Attach"
-                      aria-label="Attach a file"
+                      title={t('composer.attach', 'Attach')}
+                      aria-label={t('composer.attachFile', 'Attach a file')}
                     >
                       <AttachIcon />
                     </button>
@@ -1944,19 +1998,19 @@ export default function Home({
                             onClick={() => { setAttachMenuOpen(false); cameraInputRef.current?.click() }}
                             className="flex w-full items-center gap-2 px-3 py-2 text-xs text-fg-2 hover:bg-surface-3 hover:text-fg transition-colors"
                           >
-                            <CameraSmIcon /> Camera
+                            <CameraSmIcon /> {t('composer.camera', 'Camera')}
                           </button>
                           <button
                             onClick={() => { setAttachMenuOpen(false); photosInputRef.current?.click() }}
                             className="flex w-full items-center gap-2 px-3 py-2 text-xs text-fg-2 hover:bg-surface-3 hover:text-fg transition-colors"
                           >
-                            <PhotoIcon /> Photos
+                            <PhotoIcon /> {t('composer.photos', 'Photos')}
                           </button>
                           <button
                             onClick={() => { setAttachMenuOpen(false); documentInputRef.current?.click() }}
                             className="flex w-full items-center gap-2 px-3 py-2 text-xs text-fg-2 hover:bg-surface-3 hover:text-fg transition-colors"
                           >
-                            <DocumentIcon /> Documents
+                            <DocumentIcon /> {t('composer.documents', 'Documents')}
                           </button>
                         </div>
                       </>
@@ -1972,8 +2026,10 @@ export default function Home({
                 {voiceOutputAvailable && flags.showVoiceOutput && (
                   <button
                     onClick={handleTtsToggle}
-                    title={ttsEnabled ? 'Voice output: ON — click to mute' : 'Voice output: off — click to speak replies'}
-                    aria-label="Toggle voice output"
+                    title={ttsEnabled
+                      ? t('composer.voiceOutputOn', 'Voice output: ON — click to mute')
+                      : t('composer.voiceOutputOff', 'Voice output: off — click to speak replies')}
+                    aria-label={t('composer.voiceOutputOff', 'Toggle voice output')}
                     aria-pressed={ttsEnabled}
                     className={`flex h-8 w-8 items-center justify-center rounded-lg transition-colors ${
                       ttsEnabled
@@ -1990,8 +2046,10 @@ export default function Home({
                 {webSearchAvailable && flags.showWebSearch && (
                   <button
                     onClick={() => handleWebSearch(!webSearch)}
-                    title={webSearch ? 'Web search: ON — click to turn off' : 'Web search: off — click to turn on'}
-                    aria-label="Toggle web search"
+                    title={webSearch
+                      ? t('composer.webSearchOn', 'Web search: ON — click to turn off')
+                      : t('composer.webSearchOff', 'Web search: off — click to turn on')}
+                    aria-label={t('composer.webSearchOff', 'Toggle web search')}
                     aria-pressed={webSearch}
                     className={`flex h-8 w-8 items-center justify-center rounded-lg transition-colors ${
                       webSearch
@@ -2079,8 +2137,10 @@ export default function Home({
                   <button
                     onClick={toggleListening}
                     disabled={streaming}
-                    title={isListening ? 'Stop recording' : 'Voice input'}
-                    aria-label="Voice input"
+                    title={isListening
+                      ? t('composer.voiceInputStop', 'Stop recording')
+                      : t('composer.voiceInput', 'Voice input')}
+                    aria-label={t('composer.voiceInput', 'Voice input')}
                     aria-pressed={isListening}
                     className={`flex h-8 w-8 items-center justify-center rounded-xl transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
                       isListening
@@ -2094,7 +2154,7 @@ export default function Home({
                 {streaming ? (
                   <button
                     onClick={stop}
-                    title="Stop"
+                    title={t('composer.stop', 'Stop')}
                     className="flex h-8 w-8 items-center justify-center rounded-xl bg-primary text-on-primary hover:opacity-90 transition-opacity"
                   >
                     <StopIcon />
@@ -2103,7 +2163,7 @@ export default function Home({
                   <button
                     onClick={send}
                     disabled={!input.trim() && pendingAttachments.length === 0}
-                    title="Send"
+                    title={t('composer.send', 'Send')}
                     className="flex h-8 w-8 items-center justify-center rounded-xl bg-primary text-on-primary hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed transition-opacity"
                   >
                     <SendIcon />

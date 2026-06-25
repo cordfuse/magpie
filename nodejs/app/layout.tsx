@@ -1,6 +1,8 @@
 import type { Metadata, Viewport } from 'next'
 import { Inter } from 'next/font/google'
 import { loadMagpieConfig } from '@/lib/config'
+import { resolveLocale } from '@/lib/i18n/server'
+import { I18nProvider } from '@/lib/i18n/client'
 import './globals.css'
 
 // Re-render the layout per request so a config-file change picks up on the
@@ -35,8 +37,14 @@ export async function generateViewport(): Promise<Viewport> {
   return { themeColor, width: 'device-width', initialScale: 1 }
 }
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
-  const { config, themeCss, customCss, allowedThemeIds, defaultTheme, flags } = loadMagpieConfig()
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const { config, themeCss, customCss, allowedThemeIds, defaultTheme, flags, locales, localeCodes, defaultLocale } = loadMagpieConfig()
+
+  // Resolve the per-request locale: cookie wins, else server default.
+  // Done server-side so SSR renders directly in the chosen locale —
+  // no hydration mismatch, no first-paint flash.
+  const activeLocale = await resolveLocale(localeCodes, defaultLocale)
+  const activeTranslations = locales[activeLocale] ?? {}
 
   // Inline pre-hydration theme bootstrap: build a JS map of allowed theme
   // IDs (built-ins + custom) so the picker's stored choice validates before
@@ -53,10 +61,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     allowedThemeIds,
     customThemes: config.themes,
     flags,
+    locale: activeLocale,
+    availableLocales: localeCodes,
   })};`
 
   return (
-    <html lang="en" className={`h-dvh ${inter.variable}`} suppressHydrationWarning>
+    <html lang={activeLocale} className={`h-dvh ${inter.variable}`} suppressHydrationWarning>
       <head>
         {themeCss && (
           <style dangerouslySetInnerHTML={{ __html: themeCss }} />
@@ -73,7 +83,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <script dangerouslySetInnerHTML={{ __html: configBootstrap + themeBootstrap }} />
       </head>
       <body className="h-dvh overflow-hidden">
-        {children}
+        <I18nProvider
+          locale={activeLocale}
+          translations={activeTranslations}
+          availableLocales={localeCodes}
+        >
+          {children}
+        </I18nProvider>
       </body>
     </html>
   )

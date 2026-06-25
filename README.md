@@ -1,6 +1,6 @@
 # Magpie
 
-[![version](https://img.shields.io/badge/version-0.4.0-2ea44f.svg)](https://github.com/cordfuse/magpie/releases)
+[![version](https://img.shields.io/badge/version-0.5.0-2ea44f.svg)](https://github.com/cordfuse/magpie/releases)
 [![license](https://img.shields.io/badge/license-MIT-2ea44f.svg)](LICENSE)
 
 <table>
@@ -47,7 +47,8 @@ A single Next.js app, no database, no signup. Point it at any of 12 LLM provider
 - **Drop-in branding** — edit `config/magpie.config.json` (app name, welcome message, starter prompts, theme colors, favicon, PWA icons). Drop a `config/custom.css` for fine-grained styling (fonts, per-area colors). Next page request picks up the change. No rebuild.
 - **25 built-in themes + custom themes + per-area CSS hooks** — 13 dark + 12 light shipped; add your own under `themes[]` in the config. The header, assistant bubble, and composer pill each carry a dedicated CSS class so deployments can restyle one without dragging the others.
 - **Document + image attachments** — PDF, DOCX, XLSX, plain text, images. Extracted server-side.
-- **Voice in / out** — mic button captures speech and auto-sends; speaker toggle reads assistant replies aloud. Uses the browser's Web Speech API (no extra API key, no server cost). Locale picked from `navigator.language` so non-English browsers get the right recognizer by default. Hide either via `MAGPIE_SHOW_VOICE_INPUT=0` / `MAGPIE_SHOW_VOICE_OUTPUT=0` for kiosks where voice isn't appropriate.
+- **Voice in / out** — mic button captures speech and auto-sends; speaker toggle reads assistant replies aloud. Uses the browser's Web Speech API (no extra API key, no server cost). Recognizer + synthesizer pick the active UI locale, so language selection in Settings reconfigures voice too. Hide either via `MAGPIE_SHOW_VOICE_INPUT=0` / `MAGPIE_SHOW_VOICE_OUTPUT=0` for kiosks where voice isn't appropriate.
+- **i18n (4 locales built-in, infinite via drop-file)** — English, Spanish, French, German ship in the image. Set the default with `MAGPIE_LOCALE`, let users pick in Settings, or drop a `config/locales/<code>.json` to add any other language without a rebuild. See [Internationalisation](#internationalisation).
 - **Embeddable** — drop an `<iframe>` into any page; no `X-Frame-Options` by default. Kiosk flags + JWT-scoped per-iframe storage make it work cleanly as a support widget or in-app assistant. See [Embedding (iframe)](#embedding-iframe).
 - **One-click transcript export** — Download icon in the header saves the current chat as Markdown.
 - **PWA-ready** — manifest, installable on Android Chrome and desktop browsers.
@@ -118,6 +119,7 @@ In Docker, point local-provider base URLs at `host.docker.internal:<port>` (the 
 | `MAGPIE_SYSTEM_PROMPT` | Server-default system prompt | `"You are a helpful AI assistant."` |
 | `MAGPIE_TEMPERATURE` | Sampling temperature | `1.0` |
 | `MAGPIE_SEARCH_BACKEND` | Web search source: `auto` (native when available, Tavily otherwise), `native` (Anthropic / Google / Perplexity only), or `tavily` (uniform) | `auto` |
+| `MAGPIE_LOCALE` | Default UI language for new visitors (`en`, `es`, `fr`, `de`, or any operator-supplied code). User's Settings choice overrides per device via cookie. | `en` |
 | `MAGPIE_CONFIG_DIR` | Where `magpie.config.json` + `magpie-mcp.json` + `icons/` live | `./config` |
 | `MAGPIE_SHOW_HEADER` | Show the top header bar at all (`1`/`0`) | `1` |
 | `MAGPIE_SHOW_HEADER_ICON` | Show the app icon in the header | `1` |
@@ -280,6 +282,46 @@ Example `custom.css` swapping the font and giving the header its own color:
 }
 ```
 
+## Internationalisation
+
+Magpie ships with four UI locales built-in: **English, Spanish, French, German**. The active language is resolved per-request:
+
+1. The `magpie_locale` cookie (set when a user picks a language in Settings) wins.
+2. Otherwise the `MAGPIE_LOCALE` env var if it names a valid locale.
+3. Otherwise English.
+
+Server-side resolution means SSR renders directly in the chosen language — no hydration flash, no first-paint English-then-swap. The `<html lang>` attribute and voice STT/TTS recognizer locale all align to the active choice.
+
+### Adding a new language
+
+Drop a JSON file at `nodejs/config/locales/<code>.json` (e.g. `it.json` for Italian, `ja.json` for Japanese, `pt-BR.json` for Brazilian Portuguese). Same convention as `custom.css` and `magpie-mcp.json` — file appears in the picker on the next page load, no rebuild.
+
+The JSON is a flat string-to-string map. Keys mirror the `t()` calls in components; any missing key falls back to the English fallback embedded at the call site, so partial translations are fine.
+
+Example `nodejs/config/locales/ja.json` covering the most visible strings:
+
+```json
+{
+  "header.openChats": "チャットを開く",
+  "header.newChat": "新しいチャット",
+  "header.settings": "設定",
+  "composer.placeholder": "メッセージを送信…",
+  "composer.send": "送信",
+  "composer.voiceInput": "音声入力",
+  "settings.title": "設定",
+  "settings.language": "言語",
+  "settings.theme": "テーマ"
+}
+```
+
+A drop-in JSON file can also **override** any built-in key — useful for terminology tweaks per deployment without forking the image (e.g. rename "Assistant" to "Concierge" in your branded build).
+
+To see all keys currently in use, grep the source: `rg "t\(" nodejs/app | rg -o "t\('[^']+'" | sort -u`.
+
+### Disabling the language picker
+
+If your deployment serves a single language and you don't want users switching, set `MAGPIE_LOCALE` to your target language. The picker still appears in Settings — to hide it entirely you'd hide Settings (`MAGPIE_SHOW_SETTINGS=0`). A separate kiosk flag for "language picker only" is a candidate future feature.
+
 ## Embedding (iframe)
 
 Magpie ships no `X-Frame-Options` or `frame-ancestors` headers by default, so any page on any origin can embed it in an `<iframe>`. Drop the snippet below into your site:
@@ -334,6 +376,7 @@ magpie/
 │   │   ├── magpie.config.json     # branding + themes + welcome + starter prompts
 │   │   ├── magpie-mcp.json        # MCP server list
 │   │   ├── custom.css             # operator CSS overrides — optional
+│   │   ├── locales/               # operator locale JSON files — optional
 │   │   └── icons/                # PNGs served via /branding/*
 │   └── package.json
 ├── docker/                 # Dockerfile + three compose variants + Caddyfile

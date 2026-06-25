@@ -13,6 +13,7 @@
 
 import fs from 'node:fs'
 import path from 'node:path'
+import { BUILT_IN_LOCALES } from './i18n'
 
 // Single source of truth for the customization directory. Used by the
 // config loader, the MCP loader, and the icon-serving route. Set
@@ -144,6 +145,16 @@ interface LoadedConfig {
   defaultTheme: string
   themeColor: string
   flags: KioskFlags
+  // i18n: all locale maps merged together (built-ins + any operator JSON
+  // dropped in <configDir>/locales/*.json). Sent to the client wholesale
+  // so t() lookups are sync. List of locale codes ordered alphabetically
+  // with English first for picker display.
+  locales: Record<string, Record<string, string>>
+  localeCodes: string[]
+  // Server-default locale: env MAGPIE_LOCALE if set and valid, else 'en'.
+  // The actual rendered locale per-request is resolved from the cookie
+  // (see resolveLocale in lib/i18n/server.ts) using this as fallback.
+  defaultLocale: string
 }
 
 // Kiosk visibility flags. All default ON (full UI). Setting any to '0' or
@@ -239,7 +250,43 @@ export function loadMagpieConfig(): LoadedConfig {
     customCss = fs.readFileSync(path.join(getConfigDir(), 'custom.css'), 'utf-8')
   } catch { /* file absent — no custom CSS for this deployment */ }
 
-  return { config, themeCss, customCss, allowedThemeIds, defaultTheme, themeColor, flags: loadKioskFlags() }
+  // i18n: merge built-in locales with any operator-supplied JSON files in
+  // <configDir>/locales/. Operator JSON may override a built-in key or add
+  // an entirely new locale. Same drop-file-and-refresh ergonomics as
+  // custom.css and magpie-mcp.json.
+  const locales: Record<string, Record<string, string>> = {}
+  for (const [code, map] of Object.entries(BUILT_IN_LOCALES)) locales[code] = { ...map }
+  const localesDir = path.join(getConfigDir(), 'locales')
+  try {
+    for (const f of fs.readdirSync(localesDir)) {
+      if (!f.endsWith('.json')) continue
+      const code = f.replace(/\.json$/, '')
+      try {
+        const raw = fs.readFileSync(path.join(localesDir, f), 'utf-8')
+        const parsed = JSON.parse(raw) as unknown
+        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+          // String-valued entries only — silently skip anything else.
+          const sanitized: Record<string, string> = {}
+          for (const [k, v] of Object.entries(parsed as Record<string, unknown>)) {
+            if (typeof v === 'string') sanitized[k] = v
+          }
+          locales[code] = { ...(locales[code] ?? {}), ...sanitized }
+        }
+      } catch { /* malformed JSON — skip this file, keep going */ }
+    }
+  } catch { /* locales dir absent — built-ins only */ }
+  const localeCodes = Object.keys(locales).sort((a, b) =>
+    a === 'en' ? -1 : b === 'en' ? 1 : a.localeCompare(b)
+  )
+  const envLocale = (process.env.MAGPIE_LOCALE ?? '').trim()
+  const defaultLocale = envLocale && locales[envLocale] ? envLocale : 'en'
+
+  return {
+    config, themeCss, customCss,
+    allowedThemeIds, defaultTheme, themeColor,
+    flags: loadKioskFlags(),
+    locales, localeCodes, defaultLocale,
+  }
 }
 
 // Built-in theme IDs — re-exported so client-side code can use them as a
