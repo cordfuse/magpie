@@ -13,7 +13,7 @@ import { streamText, generateText, tool, jsonSchema, stepCountIs } from 'ai'
 import type { ModelMessage, LanguageModel } from 'ai'
 import { anthropic } from '@ai-sdk/anthropic'
 import { openai } from '@ai-sdk/openai'
-import { google } from '@ai-sdk/google'
+import { google as googleDefault, createGoogleGenerativeAI } from '@ai-sdk/google'
 import { groq } from '@ai-sdk/groq'
 import { mistral } from '@ai-sdk/mistral'
 import { cohere } from '@ai-sdk/cohere'
@@ -100,7 +100,16 @@ export const PROVIDERS: ProviderInfo[] = [
       { id: 'gemini-2.5-flash',       label: 'Gemini 2.5 Flash' },
       { id: 'gemini-2.5-flash-lite',  label: 'Gemini 2.5 Flash-Lite' },
     ],
-    createModel: (m) => google(m),
+    // @ai-sdk/google's default singleton reads GOOGLE_GENERATIVE_AI_API_KEY,
+    // but the Magpie env convention (and most users' existing setups) uses
+    // GEMINI_API_KEY. Build the provider explicitly with that key at request
+    // time so an env change between requests gets picked up. Fall back to
+    // the default singleton if only the SDK-native var is set.
+    createModel: (m) => {
+      const key = process.env.GEMINI_API_KEY
+      if (!key) return googleDefault(m)
+      return createGoogleGenerativeAI({ apiKey: key })(m)
+    },
   },
   {
     id: 'groq', label: 'Groq', category: 'cloud', envKey: 'GROQ_API_KEY',
@@ -379,8 +388,10 @@ function getNativeSearch(providerId: string): NativeSearch | null {
       return { tools: { web_search: anthropic.tools.webSearch_20250305({ maxUses: 5 }) } }
     case 'gemini':
       // Google grounding via the Search tool. The provider routes this
-      // through Gemini's built-in search grounding pipeline.
-      return { tools: { google_search: google.tools.googleSearch({}) } }
+      // through Gemini's built-in search grounding pipeline. Tool factories
+      // aren't bound to a specific API key, so the default singleton is
+      // fine here even though we use createGoogleGenerativeAI() for models.
+      return { tools: { google_search: googleDefault.tools.googleSearch({}) } }
     case 'perplexity':
       // Sonar models search the web on every request — no tool slot needed.
       // The source-chunk path still picks up citations from the response.
