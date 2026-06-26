@@ -190,6 +190,9 @@ const GearIcon = () => (
 const CloseIcon = () => (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
 )
+const EllipsisIcon = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>
+)
 const SearchIcon = () => (
   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
 )
@@ -1023,6 +1026,7 @@ export default function Home({
   // the lg:relative override; we just track the boolean).
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [headerMenuOpen, setHeaderMenuOpen] = useState(false)
   const [theme, setTheme] = useState<Theme>('dracula')
   const [confirmDelete, setConfirmDelete] = useState<{ label: string; doDelete: () => void } | null>(null)
   const [search, setSearch] = useState('')
@@ -1717,44 +1721,6 @@ export default function Home({
             </span>
           )}
           <div className="flex-1" />
-          {messages.length > 0 && (
-            <button
-              onClick={() => {
-                // Download the active chat as a markdown transcript.
-                // Builds a synthetic Conversation from current state if the
-                // chat hasn't been persisted yet (kiosk mode, or a brand-new
-                // chat before the autosave) — still useful to capture.
-                const conv: Conversation = activeId
-                  ? (conversations.find(c => c.id === activeId)
-                      ?? { id: activeId, title: 'Chat', messages, createdAt: Date.now(), updatedAt: Date.now() })
-                  : { id: 'unsaved', title: autoTitle(messages), messages, createdAt: Date.now(), updatedAt: Date.now() }
-                const safeTitle = conv.title.replace(/[^a-z0-9-_]+/gi, '-').replace(/^-+|-+$/g, '') || 'magpie-chat'
-                downloadTextFile(conversationToMarkdown(conv), `${safeTitle}.md`, 'text/markdown')
-              }}
-              className="flex h-9 w-9 items-center justify-center rounded-lg text-fg-3 hover:bg-surface hover:text-fg transition-colors"
-              title={t('header.downloadChat', 'Download chat as Markdown')}
-              aria-label={t('header.downloadChat', 'Download current chat as Markdown')}
-            >
-              <DownloadIcon />
-            </button>
-          )}
-          {activeId && flags.persistChat && (
-            <button
-              onClick={() => {
-                const conv = conversations.find(c => c.id === activeId)
-                if (!conv) return
-                setConfirmDelete({
-                  label: `"${conv.title}"`,
-                  doDelete: () => { removeConversation(activeId); newConversation() },
-                })
-              }}
-              className="flex h-9 w-9 items-center justify-center rounded-lg text-fg-3 hover:bg-surface hover:text-red-400 transition-colors"
-              title={t('header.deleteChat', 'Delete chat')}
-              aria-label={t('header.deleteChat', 'Delete current chat')}
-            >
-              <TrashIcon />
-            </button>
-          )}
           {flags.persistChat && (
             <button
               onClick={newConversation}
@@ -1765,14 +1731,64 @@ export default function Home({
               <NewChatIcon />
             </button>
           )}
-          <button
-            onClick={() => window.location.reload()}
-            className="flex h-9 w-9 items-center justify-center rounded-lg text-fg-3 hover:bg-surface hover:text-fg transition-colors"
-            title={t('header.refresh', 'Refresh')}
-            aria-label={t('header.refresh', 'Refresh page')}
-          >
-            <RefreshIcon />
-          </button>
+          {/* Overflow menu — holds rare actions (download, delete) so the
+              header stays uncluttered on mobile. Only renders when at least
+              one of its children would be visible. */}
+          {(messages.length > 0 || (activeId && flags.persistChat)) && (
+            <div className="relative">
+              <button
+                onClick={() => setHeaderMenuOpen(v => !v)}
+                className="flex h-9 w-9 items-center justify-center rounded-lg text-fg-3 hover:bg-surface hover:text-fg transition-colors"
+                title={t('header.more', 'More')}
+                aria-label={t('header.more', 'More actions')}
+                aria-haspopup="menu"
+                aria-expanded={headerMenuOpen}
+              >
+                <EllipsisIcon />
+              </button>
+              {headerMenuOpen && (
+                <>
+                  <div className="fixed inset-0 z-30" onClick={() => setHeaderMenuOpen(false)} />
+                  <div className="absolute right-0 top-full z-40 mt-1 min-w-[12rem] rounded-lg border border-white/10 bg-surface-2 shadow-xl overflow-hidden">
+                    {messages.length > 0 && (
+                      <button
+                        onClick={() => {
+                          setHeaderMenuOpen(false)
+                          const conv: Conversation = activeId
+                            ? (conversations.find(c => c.id === activeId)
+                                ?? { id: activeId, title: 'Chat', messages, createdAt: Date.now(), updatedAt: Date.now() })
+                            : { id: 'unsaved', title: autoTitle(messages), messages, createdAt: Date.now(), updatedAt: Date.now() }
+                          const safeTitle = conv.title.replace(/[^a-z0-9-_]+/gi, '-').replace(/^-+|-+$/g, '') || 'magpie-chat'
+                          downloadTextFile(conversationToMarkdown(conv), `${safeTitle}.md`, 'text/markdown')
+                        }}
+                        className="flex w-full items-center gap-2.5 px-3 py-2 text-sm text-fg hover:bg-surface-3 transition-colors"
+                      >
+                        <DownloadIcon />
+                        <span>{t('header.downloadChat', 'Download chat as Markdown')}</span>
+                      </button>
+                    )}
+                    {activeId && flags.persistChat && (
+                      <button
+                        onClick={() => {
+                          setHeaderMenuOpen(false)
+                          const conv = conversations.find(c => c.id === activeId)
+                          if (!conv) return
+                          setConfirmDelete({
+                            label: `"${conv.title}"`,
+                            doDelete: () => { removeConversation(activeId); newConversation() },
+                          })
+                        }}
+                        className="flex w-full items-center gap-2.5 px-3 py-2 text-sm text-fg hover:bg-surface-3 hover:text-red-400 transition-colors"
+                      >
+                        <TrashIcon />
+                        <span>{t('header.deleteChat', 'Delete chat')}</span>
+                      </button>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
+          )}
           {flags.showSettings && (
             <button
               onClick={() => setSettingsOpen(true)}
