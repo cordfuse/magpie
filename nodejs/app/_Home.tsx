@@ -1739,6 +1739,13 @@ export default function Home({
                 <>
                   <div className="fixed inset-0 z-30" onClick={() => setHeaderMenuOpen(false)} />
                   <div className="absolute right-0 top-full z-40 mt-1 min-w-[12rem] rounded-lg border border-white/10 bg-surface-2 shadow-xl overflow-hidden">
+                    <button
+                      onClick={() => { setHeaderMenuOpen(false); window.location.reload() }}
+                      className="flex w-full items-center gap-2.5 px-3 py-2 text-sm text-fg hover:bg-surface-3 transition-colors"
+                    >
+                      <RefreshIcon />
+                      <span>{t('header.refresh', 'Reload')}</span>
+                    </button>
                     {flags.persistChat && (
                       <button
                         onClick={() => { setHeaderMenuOpen(false); newConversation() }}
@@ -1748,13 +1755,6 @@ export default function Home({
                         <span>{t('header.newChat', 'New chat')}</span>
                       </button>
                     )}
-                    <button
-                      onClick={() => { setHeaderMenuOpen(false); window.location.reload() }}
-                      className="flex w-full items-center gap-2.5 px-3 py-2 text-sm text-fg hover:bg-surface-3 transition-colors"
-                    >
-                      <RefreshIcon />
-                      <span>{t('header.refresh', 'Reload')}</span>
-                    </button>
                     {messages.length > 0 && (
                       <button
                         onClick={() => {
