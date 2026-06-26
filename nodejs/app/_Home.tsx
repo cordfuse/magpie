@@ -1699,7 +1699,7 @@ export default function Home({
       {/* main column */}
       <div className="flex-1 flex flex-col min-w-0 bg-bg">
         {flags.showHeader && (
-        <header className="magpie-header px-3 py-3 flex items-center gap-2 shrink-0 z-10">
+        <header className="magpie-header px-3 py-3 flex items-center gap-1 shrink-0 z-10">
           {flags.persistChat && (
             <button
               onClick={() => setSidebarOpen(true)}
@@ -1765,6 +1765,14 @@ export default function Home({
               <NewChatIcon />
             </button>
           )}
+          <button
+            onClick={() => window.location.reload()}
+            className="flex h-9 w-9 items-center justify-center rounded-lg text-fg-3 hover:bg-surface hover:text-fg transition-colors"
+            title={t('header.refresh', 'Refresh')}
+            aria-label={t('header.refresh', 'Refresh page')}
+          >
+            <RefreshIcon />
+          </button>
           {flags.showSettings && (
             <button
               onClick={() => setSettingsOpen(true)}
