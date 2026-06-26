@@ -2,7 +2,7 @@ const de: Record<string, string> = {
   'header.openChats':         'Chats öffnen',
   'header.newChat':           'Neuer Chat',
   'header.deleteChat':        'Chat löschen',
-  'header.downloadChat':      'Chat als Markdown herunterladen',
+  'header.downloadChat':      'Chat herunterladen',
   'header.settings':          'Einstellungen',
   'sidebar.chats':            'Chats',
   'sidebar.searchPlaceholder': 'Chats durchsuchen…',

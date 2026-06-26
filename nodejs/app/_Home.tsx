@@ -1764,7 +1764,7 @@ export default function Home({
                         className="flex w-full items-center gap-2.5 px-3 py-2 text-sm text-fg hover:bg-surface-3 transition-colors"
                       >
                         <DownloadIcon />
-                        <span>{t('header.downloadChat', 'Download chat as Markdown')}</span>
+                        <span>{t('header.downloadChat', 'Download chat')}</span>
                       </button>
                     )}
                     {activeId && flags.persistChat && (
