@@ -109,7 +109,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         )}
         <script dangerouslySetInnerHTML={{ __html: configBootstrap + themeBootstrap }} />
       </head>
-      <body className="h-dvh overflow-hidden">
+      <body className="h-dvh">
         <I18nProvider
           locale={activeLocale}
           translations={activeTranslations}
