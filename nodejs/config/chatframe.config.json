@@ -1,8 +1,8 @@
 {
   "$comment": "Chatframe branding + theme config. Edit this file in-place on a running instance — the next page load picks up the changes (no rebuild, no restart). For PWA shortcuts already installed on a device, the OS-cached launcher icon won't update until you reinstall the PWA.",
 
-  "name": "Chatframe",
-  "shortName": "Chatframe",
+  "name": "ChatFrame",
+  "shortName": "ChatFrame",
   "tagline": "Embeddable AI chatbot framework",
   "defaultSystemPrompt": "You are a helpful AI assistant.",
 
