@@ -132,6 +132,13 @@ In Docker, point local-provider base URLs at `host.docker.internal:<port>` (the 
 | `CHATFRAME_SHOW_ATTACHMENTS` | Show the paperclip | `1` |
 | `CHATFRAME_SHOW_VOICE_INPUT` | Show the mic button (Web Speech API STT) | `1` |
 | `CHATFRAME_SHOW_VOICE_OUTPUT` | Show the speaker toggle (Web Speech API TTS) | `1` |
+| `CHATFRAME_SHOW_SYSTEM_PROMPT_EDIT` | Show the system-prompt textarea in Settings (jailbreak vector — set `0` for whitelabel) | `1` |
+| `CHATFRAME_SHOW_TEMPERATURE_EDIT` | Show the temperature slider in Settings | `1` |
+| `CHATFRAME_SHOW_IMPORT_EXPORT_RESET` | Show the Data row (Import / Export / Reset) in Settings | `1` |
+| `CHATFRAME_SHOW_DOWNLOAD_CHAT` | Show "Download chat" in the kebab menu (data-exfil control) | `1` |
+| `CHATFRAME_SHOW_CLEAR_ALL_CONVERSATIONS` | Show the sidebar's clear-all-conversations button | `1` |
+| `CHATFRAME_SHOW_MESSAGE_ACTIONS` | Show per-message copy / edit / regenerate icons | `1` |
+| `CHATFRAME_SHOW_SOURCES` | Show web-search source citations under assistant replies | `1` |
 
 Generate a `JWT_SECRET` with `openssl rand -hex 32`.
 

@@ -75,7 +75,7 @@ const BUILT_IN_THEME_GROUPS: { label: string; ids: Theme[] }[] = [
 const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION ?? '0.1.0'
 
 // Branding pulled from window.__CHATFRAME (injected by app/layout.tsx from
-// the runtime chatframe.config.json read). All fields fall back to "Chatframe"
+// the runtime chatframe.config.json read). All fields fall back to "ChatFrame"
 // defaults when window or the global aren't available (SSR, tests).
 interface ChatframeBranding {
   name: string
@@ -87,13 +87,13 @@ interface ChatframeBranding {
 }
 function getChatframeBranding(): ChatframeBranding {
   if (typeof window === 'undefined') {
-    return { name: 'Chatframe', shortName: 'Chatframe', welcomeMessage: '', checkForUpdatesUrl: '#', customThemes: [], hideBuiltIns: false }
+    return { name: 'ChatFrame', shortName: 'ChatFrame', welcomeMessage: '', checkForUpdatesUrl: '#', customThemes: [], hideBuiltIns: false }
   }
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const w = (window as any).__CHATFRAME ?? {}
   return {
-    name: w.name ?? 'Chatframe',
-    shortName: w.shortName ?? 'Chatframe',
+    name: w.name ?? 'ChatFrame',
+    shortName: w.shortName ?? 'ChatFrame',
     welcomeMessage: typeof w.welcomeMessage === 'string' ? w.welcomeMessage : '',
     checkForUpdatesUrl: w.checkForUpdatesUrl ?? '#',
     customThemes: Array.isArray(w.customThemes) ? w.customThemes : [],
@@ -115,6 +115,14 @@ interface ChatframeFlags {
   showAttachments: boolean
   showVoiceInput: boolean
   showVoiceOutput: boolean
+  // v0.7.0 — operator-suppression flags. All default ON. Mirror of KioskFlags.
+  showSystemPromptEdit: boolean
+  showTemperatureEdit: boolean
+  showImportExportReset: boolean
+  showDownloadChat: boolean
+  showClearAllConversations: boolean
+  showMessageActions: boolean
+  showSourcesCitations: boolean
 }
 function getChatframeFlags(): ChatframeFlags {
   const fallback = {
@@ -123,6 +131,9 @@ function getChatframeFlags(): ChatframeFlags {
     showWebSearch: true, showMcp: true, showModelPicker: true,
     showAttachments: true,
     showVoiceInput: true, showVoiceOutput: true,
+    showSystemPromptEdit: true, showTemperatureEdit: true, showImportExportReset: true,
+    showDownloadChat: true, showClearAllConversations: true, showMessageActions: true,
+    showSourcesCitations: true,
   }
   if (typeof window === 'undefined') return fallback
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -140,15 +151,23 @@ function getChatframeFlags(): ChatframeFlags {
     showAttachments: f.showAttachments !== false,
     showVoiceInput:  f.showVoiceInput  !== false,
     showVoiceOutput: f.showVoiceOutput !== false,
+    showSystemPromptEdit:      f.showSystemPromptEdit      !== false,
+    showTemperatureEdit:       f.showTemperatureEdit       !== false,
+    showImportExportReset:     f.showImportExportReset     !== false,
+    showDownloadChat:          f.showDownloadChat          !== false,
+    showClearAllConversations: f.showClearAllConversations !== false,
+    showMessageActions:        f.showMessageActions        !== false,
+    showSourcesCitations:      f.showSourcesCitations      !== false,
   }
 }
 
 // ─── icons ───────────────────────────────────────────────────────────────────
 
 const ChatframeIcon = () => (
-  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="text-primary">
-    <path d="M20.5 3.5c-7 1-12 6-13.5 13.5L4 20l3-3.5c7.5-1.5 12.5-6.5 13.5-13z" />
-    <path d="M4 20l8-8" />
+  <svg width="22" height="22" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+    <rect width="512" height="512" rx="90" ry="90" fill="#0B1320"/>
+    <rect x="1.5" y="1.5" width="509" height="509" rx="89" ry="89" fill="none" stroke="#3EC1D5" strokeWidth="1.5" strokeOpacity="0.22"/>
+    <text x="256" y="256" textAnchor="middle" dominantBaseline="middle" fontFamily="'Noto Sans Mono', 'Courier New', monospace" fontSize="240" fontWeight="700" fill="#3EC1D5" letterSpacing="-4">{'{Cf}'}</text>
   </svg>
 )
 const SendIcon = () => (
@@ -324,6 +343,7 @@ function SettingsPanel({
   customTemperature, onTemperature,
   onExport, onImport, onResetAll,
   onClose,
+  flags,
 }: {
   theme: Theme
   onTheme: (t: Theme) => void
@@ -338,6 +358,7 @@ function SettingsPanel({
   onImport: () => void
   onResetAll: () => void
   onClose: () => void
+  flags: ChatframeFlags
 }) {
   const [closing, setClosing] = useState(false)
   const [themeOpen, setThemeOpen] = useState(false)
@@ -558,6 +579,7 @@ function SettingsPanel({
           )}
 
           {/* System prompt */}
+          {flags.showSystemPromptEdit && (
           <div>
             <p className="text-[10px] font-semibold text-fg-3 uppercase tracking-wider mb-2">{t('settings.systemPrompt', 'System prompt')}</p>
             <textarea
@@ -580,8 +602,10 @@ function SettingsPanel({
               </button>
             )}
           </div>
+          )}
 
           {/* Temperature */}
+          {flags.showTemperatureEdit && (
           <div>
             <div className="flex items-baseline justify-between mb-1">
               <p className="text-[10px] font-semibold text-fg-3 uppercase tracking-wider">{t('settings.temperature', 'Temperature')}</p>
@@ -605,8 +629,10 @@ function SettingsPanel({
               </button>
             )}
           </div>
+          )}
 
           {/* Data: Import / Export / Reset on a single row */}
+          {flags.showImportExportReset && (
           <div>
             <p className="text-[10px] font-semibold text-fg-3 uppercase tracking-wider mb-2">{t('settings.data', 'Data')}</p>
             <div className="grid grid-cols-3 gap-2">
@@ -630,6 +656,7 @@ function SettingsPanel({
               </button>
             </div>
           </div>
+          )}
         </div>
 
         <div className="px-5 py-3 flex items-center justify-end text-xs text-fg-4">
@@ -708,7 +735,7 @@ function ConvItem({ conv, active, onSelect, onDeleteRequest, onRename }: {
 function Sidebar({
   visible, onClose, conversations, activeId, query, setQuery,
   onSelectConv, onDeleteConv, onRenameConv, onClearAll,
-  appName,
+  appName, showClearAll,
 }: {
   visible: boolean
   onClose: () => void
@@ -720,6 +747,7 @@ function Sidebar({
   onDeleteConv: (id: string, title: string) => void
   onRenameConv: (id: string, title: string) => void
   onClearAll: () => void
+  showClearAll: boolean
   appName: string
 }) {
   const t = useT()
@@ -753,7 +781,7 @@ function Sidebar({
         <div className="flex items-center border-b border-white/10 ml-3 mr-[17px] h-9">
           <span className="text-xs font-medium text-fg-3">{t('sidebar.chats', 'Chats')}</span>
           <div className="flex-1" />
-          {conversations.length > 0 && (
+          {showClearAll && conversations.length > 0 && (
             <button
               onClick={onClearAll}
               title="Clear all conversations"
@@ -807,12 +835,14 @@ function Sidebar({
 
 // ─── message bubble ──────────────────────────────────────────────────────────
 
-function MessageItem({ msg, streaming, isLastAssistant, onEditAndResend, onRegenerate }: {
+function MessageItem({ msg, streaming, isLastAssistant, onEditAndResend, onRegenerate, showActions, showSources }: {
   msg: ChatMessage
   streaming: boolean
   isLastAssistant: boolean
   onEditAndResend: (id: string, newContent: string) => void
   onRegenerate: () => void
+  showActions: boolean
+  showSources: boolean
 }) {
   const [copied, setCopied] = useState(false)
   const [editing, setEditing] = useState(false)
@@ -846,7 +876,7 @@ function MessageItem({ msg, streaming, isLastAssistant, onEditAndResend, onRegen
   }
 
   if (msg.role === 'user') {
-    const actions = !editing && !streaming && (
+    const actions = showActions && !editing && !streaming && (
       <div
         className="flex gap-2 opacity-60 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity mb-1"
         onClick={e => e.stopPropagation()}
@@ -915,7 +945,7 @@ function MessageItem({ msg, streaming, isLastAssistant, onEditAndResend, onRegen
   const isEmptyStreaming = msg.content.length === 0 && streaming
   // Regenerate is only offered on the LAST assistant message, and only
   // when we're not currently streaming (otherwise it's mid-flight).
-  const actions = !isEmptyStreaming && (
+  const actions = showActions && !isEmptyStreaming && (
     <div
       className="flex gap-2 opacity-60 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity mb-1"
       onClick={e => e.stopPropagation()}
@@ -949,7 +979,7 @@ function MessageItem({ msg, streaming, isLastAssistant, onEditAndResend, onRegen
         </div>
         {actions}
       </div>
-      {msg.sources && msg.sources.length > 0 && (
+      {showSources && msg.sources && msg.sources.length > 0 && (
         <div className="ml-1 mt-1 max-w-[85%] rounded-xl bg-surface px-3 py-2 border-l border-primary/30">
           <div className="text-[10px] text-fg-3 mb-1 uppercase tracking-wider">Sources</div>
           <ul className="space-y-1.5">
@@ -992,7 +1022,7 @@ function MessageItem({ msg, streaming, isLastAssistant, onEditAndResend, onRegen
 
 export default function Home({
   initialConvId,
-  appName = 'Chatframe',
+  appName = 'ChatFrame',
   welcomeMessage = '',
   starterPrompts = [],
   flags: serverFlags,
@@ -1691,6 +1721,7 @@ export default function Home({
             doDelete: clearAll,
           })}
           appName={appName}
+          showClearAll={flags.showClearAllConversations}
         />
       )}
 
@@ -1749,7 +1780,7 @@ export default function Home({
                         <span>{t('header.newChat', 'New chat')}</span>
                       </button>
                     )}
-                    {messages.length > 0 && (
+                    {flags.showDownloadChat && messages.length > 0 && (
                       <button
                         onClick={() => {
                           setHeaderMenuOpen(false)
@@ -1845,6 +1876,8 @@ export default function Home({
                 isLastAssistant={m.role === 'assistant' && m.id === messages[messages.length - 1]?.id}
                 onEditAndResend={editAndResend}
                 onRegenerate={regenerate}
+                showActions={flags.showMessageActions}
+                showSources={flags.showSourcesCitations}
               />
             ))}
           </div>
@@ -2261,6 +2294,7 @@ export default function Home({
             },
           })}
           onClose={() => setSettingsOpen(false)}
+          flags={flags}
         />
       )}
       {confirmDelete && (

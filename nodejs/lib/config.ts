@@ -68,8 +68,8 @@ export interface ChatframeConfig {
 }
 
 const defaults: ChatframeConfig = {
-  name: 'Chatframe',
-  shortName: 'Chatframe',
+  name: 'ChatFrame',
+  shortName: 'ChatFrame',
   tagline: 'Embeddable AI chatbot framework',
   defaultSystemPrompt: 'You are a helpful AI assistant.',
   welcomeMessage: '',
@@ -133,6 +133,15 @@ export interface KioskFlags {
   showAttachments: boolean
   showVoiceInput: boolean
   showVoiceOutput: boolean
+  // v0.7.0 — operator-suppression flags for kiosk / whitelabel / regulated
+  // deployments. All default ON to keep the full-UI experience for plain forks.
+  showSystemPromptEdit: boolean     // hide the system-prompt textarea in settings
+  showTemperatureEdit: boolean      // hide the temperature slider in settings
+  showImportExportReset: boolean    // hide the import / export / reset row in settings
+  showDownloadChat: boolean         // hide the "Download chat" entry in the kebab menu
+  showClearAllConversations: boolean // hide the "Clear all" button in the sidebar
+  showMessageActions: boolean       // hide per-message copy / edit / regenerate buttons
+  showSourcesCitations: boolean     // hide web-search source attribution under assistant replies
 }
 
 interface LoadedConfig {
@@ -185,6 +194,13 @@ export function loadKioskFlags(): KioskFlags {
     showAttachments: envBool('CHATFRAME_SHOW_ATTACHMENTS',  true),
     showVoiceInput:  envBool('CHATFRAME_SHOW_VOICE_INPUT',  true),
     showVoiceOutput: envBool('CHATFRAME_SHOW_VOICE_OUTPUT', true),
+    showSystemPromptEdit:      envBool('CHATFRAME_SHOW_SYSTEM_PROMPT_EDIT',      true),
+    showTemperatureEdit:       envBool('CHATFRAME_SHOW_TEMPERATURE_EDIT',        true),
+    showImportExportReset:     envBool('CHATFRAME_SHOW_IMPORT_EXPORT_RESET',     true),
+    showDownloadChat:          envBool('CHATFRAME_SHOW_DOWNLOAD_CHAT',           true),
+    showClearAllConversations: envBool('CHATFRAME_SHOW_CLEAR_ALL_CONVERSATIONS', true),
+    showMessageActions:        envBool('CHATFRAME_SHOW_MESSAGE_ACTIONS',         true),
+    showSourcesCitations:      envBool('CHATFRAME_SHOW_SOURCES',                 true),
   }
 }
 
